@@ -7,18 +7,28 @@ export const AuthCallbackPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // --- ★★★ ここから調査用ログを追加 ★★★ ---
+    console.log('[AuthCallback] ページが表示されました。');
     const token = searchParams.get('token');
+    
     if (token) {
-      // トークンをローカルストレージに保存
-      localStorage.setItem('auth-token', token);
-      // ★★★ ここから修正 ★★★
-      // navigate('/') の代わりに、ページを強制的に再読み込みさせる
-      window.location.href = '/'; 
-      // ★★★ ここまで修正 ★★★
+      console.log('[AuthCallback] URLからトークンを発見しました:', token);
+      try {
+        console.log('[AuthCallback] localStorageへのトークン保存を開始します。');
+        localStorage.setItem('auth-token', token);
+        console.log('[AuthCallback] localStorageへの保存が成功しました。');
+        
+        console.log('[AuthCallback] トップページへのリダイレクトを実行します。');
+        window.location.href = '/'; 
+      } catch (e) {
+        console.error('[AuthCallback] localStorageへの保存中にエラーが発生しました:', e);
+        navigate('/login');
+      }
     } else {
-      // トークンがなければログインページに戻す
+      console.warn('[AuthCallback] URLにトークンが見つからなかったため、ログインページに戻ります。');
       navigate('/login');
     }
+    // --- ★★★ ここまで追加 ★★★ ---
   }, [searchParams, navigate]);
 
   return (
