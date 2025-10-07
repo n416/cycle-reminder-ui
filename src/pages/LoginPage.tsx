@@ -5,6 +5,12 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import GroupIcon from '@mui/icons-material/Group';
 
 export const LoginPage = () => {
+  // --- ★★★ ここから修正 ★★★ ---
+  // 環境変数からAPIのベースURLを取得し、なければ開発用のURLを使う
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+  const loginUrl = `${apiBaseUrl}/auth/discord`;
+  // --- ★★★ ここまで修正 ★★★ ---
+
   return (
     <Container component="main" maxWidth="md">
       <Box
@@ -49,7 +55,7 @@ export const LoginPage = () => {
             variant="contained"
             size="large"
             startIcon={<LoginIcon />}
-            href="http://localhost:8080/api/auth/discord" // onClickからhrefに変更
+            href={loginUrl} // ★ 修正した変数を使う
             sx={{ px: 5, py: 1.5, fontSize: '1.1rem' }}
           >
             Discordでログイン
