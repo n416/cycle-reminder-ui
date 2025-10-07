@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
@@ -11,8 +11,10 @@ export const AuthCallbackPage = () => {
     if (token) {
       // トークンをローカルストレージに保存
       localStorage.setItem('auth-token', token);
-      // メインページにリダイレクト
-      navigate('/');
+      // ★★★ ここから修正 ★★★
+      // navigate('/') の代わりに、ページを強制的に再読み込みさせる
+      window.location.href = '/'; 
+      // ★★★ ここまで修正 ★★★
     } else {
       // トークンがなければログインページに戻す
       navigate('/login');
