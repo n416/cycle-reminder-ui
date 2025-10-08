@@ -33,6 +33,15 @@ import Clock from 'react-clock';
 import 'react-calendar/dist/Calendar.css';
 import 'react-clock/dist/Clock.css';
 
+// --- ★★★ ここから修正 ★★★ ---
+// Dateオブジェクトを "YYYY-MM-DDTHH:mm" 形式のローカルタイム文字列に変換する
+const toLocalISOString = (date: Date) => {
+  const tzoffset = date.getTimezoneOffset() * 60000; // ミリ秒単位のオフセット
+  const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
+  return localISOTime;
+};
+// --- ★★★ ここまで修正 ★★★ ---
+
 const weekDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const weekDayMap: { [key: string]: string } = {
   monday: '月曜',
@@ -51,7 +60,7 @@ interface EditReminderFormProps {
 
 export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, onCancel }) => {
   const dispatch = useAppDispatch();
-  
+
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -66,13 +75,13 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
 
   const [message, setMessage] = useState(reminder.message);
   const [channelId, setChannelId] = useState(reminder.channelId);
-  const [startTime, setStartTime] = useState(new Date(reminder.startTime).toISOString().slice(0, 16));
+  const [startTime, setStartTime] = useState(toLocalISOString(new Date(reminder.startTime))); // ★ toLocalISOStringを使用
   const [startTimeValue, setStartTimeValue] = useState<Date | null>(new Date(reminder.startTime));
 
   const [recurrenceType, setRecurrenceType] = useState(reminder.recurrence.type);
   const [weeklyDays, setWeeklyDays] = useState(reminder.recurrence.type === 'weekly' ? reminder.recurrence.days : []);
   const [intervalHours, setIntervalHours] = useState(reminder.recurrence.type === 'interval' ? reminder.recurrence.hours : 1);
-  
+
   useEffect(() => {
     if (channels) {
       const channelExists = channels.some(ch => ch.id === reminder.channelId);
@@ -83,7 +92,7 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
       }
     }
   }, [channels, reminder.channelId]);
-  
+
   useEffect(() => {
     try {
       const date = new Date(startTime);
@@ -99,9 +108,8 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
 
   const handleSetNow = () => {
     const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     now.setSeconds(0, 0);
-    setStartTime(now.toISOString().slice(0, 16));
+    setStartTime(toLocalISOString(now)); // ★ toLocalISOStringを使用
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,7 +139,7 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
           status: reminder.status,
         })
       ).unwrap();
-      
+
       dispatch(showToast({ message: 'リマインダーを更新しました。', severity: 'success' }));
       onCancel();
     } catch (error) {
@@ -139,7 +147,7 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
       dispatch(showToast({ message: 'リマインダーの更新に失敗しました。', severity: 'error' }));
     }
   };
-  
+
   const tileClassName = ({ date, view }: { date: Date, view: string }) => {
     if (view === 'month') {
       const dayName = weekDays[date.getDay()];
@@ -149,12 +157,12 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
     }
     return null;
   };
-  
+
   const renderIntervalClocks = () => {
     if (!startTimeValue) return null;
     const now = new Date();
     const clocks = [];
-    
+
     let nextStartTime = new Date(startTimeValue);
     while (nextStartTime <= now) {
       nextStartTime.setHours(nextStartTime.getHours() + intervalHours);
@@ -194,10 +202,10 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
             </Select>
           </FormControl>
           <IconButton onClick={() => dispatch(fetchChannels({ serverId: reminder.serverId, forceRefresh: true }))} disabled={channelsStatus === 'loading'}>
-              {channelsStatus === 'loading' ? <CircularProgress size={24} /> : <RefreshIcon />}
-            </IconButton>
+            {channelsStatus === 'loading' ? <CircularProgress size={24} /> : <RefreshIcon />}
+          </IconButton>
         </Stack>
-        
+
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="stretch">
           <TextField
             label="起点日時"
@@ -255,26 +263,28 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
         )}
 
         {startTimeValue && (
-            <Paper variant="outlined" sx={{ p: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-              {recurrenceType === 'none' && (
-                <Stack alignItems="center" spacing={1}>
-                  <Clock value={startTimeValue} size={isSmallScreen ? 120 : 150} renderNumbers />
-                  <Typography variant="caption">この日時に1回だけ通知</Typography>
-                </Stack>
-              )}
-              {recurrenceType === 'weekly' && (
-                <Box sx={{ pointerEvents: 'none', width: '100%', maxWidth: '350px', '& .react-calendar': { width: '100% !important' } }}>
-                  <Calendar
-                    value={startTimeValue}
-                    tileClassName={tileClassName}
-                    showNeighboringMonth={false}
-                    showNavigation={false}
-                  />
-                </Box>
-              )}
-              {recurrenceType === 'interval' && renderIntervalClocks()}
-            </Paper>
-          )}
+          <Paper variant="outlined" sx={{ p: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            {recurrenceType === 'none' && (
+              <Stack alignItems="center" spacing={1}>
+                <Clock value={startTimeValue} size={isSmallScreen ? 120 : 150} renderNumbers />
+                <Typography variant="caption">この日時に1回だけ通知</Typography>
+              </Stack>
+            )}
+            {recurrenceType === 'weekly' && (
+              <Box sx={{ pointerEvents: 'none', width: '100%', maxWidth: '350px', '& .react-calendar': { width: '100% !important' } }}>
+                <Calendar
+                  value={startTimeValue}
+                  tileClassName={tileClassName}
+                  showNeighboringMonth={false}
+                  showNavigation={false}
+                  formatShortWeekday={(_locale, date) => ['日', '月', '火', '水', '木', '金', '土'][date.getDay()]}
+                  formatDay={isSmallScreen ? (_locale, date) => date.getDate().toString() : undefined}
+                />
+              </Box>
+            )}
+            {recurrenceType === 'interval' && renderIntervalClocks()}
+          </Paper>
+        )}
 
         <Stack direction="row" spacing={2} justifyContent="flex-end">
           <Button onClick={onCancel}>キャンセル</Button>

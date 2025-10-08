@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks.ts';
 import { addNewReminder } from './remindersSlice.ts';
 import { fetchChannels, selectChannelsForServer, getChannelsStatus } from '../channels/channelsSlice.ts';
+import { showToast } from '@/features/toast/toastSlice';
 import {
   Box,
   TextField,
@@ -33,6 +34,17 @@ import Calendar from 'react-calendar';
 import Clock from 'react-clock';
 import 'react-calendar/dist/Calendar.css';
 import 'react-clock/dist/Clock.css';
+import './Calendar.css';
+import './Clock.css';
+
+// --- ★★★ ここから修正 ★★★ ---
+// Dateオブジェクトを "YYYY-MM-DDTHH:mm" 形式のローカルタイム文字列に変換する
+const toLocalISOString = (date: Date) => {
+  const tzoffset = date.getTimezoneOffset() * 60000; // ミリ秒単位のオフセット
+  const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
+  return localISOTime;
+};
+// --- ★★★ ここまで修正 ★★★ ---
 
 const weekDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const weekDayMap: { [key: string]: string } = {
@@ -49,7 +61,7 @@ export const AddReminderForm = () => {
   const { serverId } = useParams<{ serverId: string }>();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  
+
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -70,13 +82,13 @@ export const AddReminderForm = () => {
   const [recurrenceType, setRecurrenceType] = useState<'none' | 'weekly' | 'interval'>('none');
   const [weeklyDays, setWeeklyDays] = useState<string[]>([]);
   const [intervalHours, setIntervalHours] = useState(1);
-  
+
   useEffect(() => {
     if (channels && channels.length > 0 && !channelId) {
       setChannelId(channels[0].id);
     }
   }, [channels, channelId]);
-  
+
   useEffect(() => {
     try {
       const date = new Date(startTime);
@@ -92,9 +104,8 @@ export const AddReminderForm = () => {
 
   const handleSetNow = () => {
     const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     now.setSeconds(0, 0);
-    setStartTime(now.toISOString().slice(0, 16));
+    setStartTime(toLocalISOString(now)); // ★ toLocalISOStringを使用
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,23 +126,25 @@ export const AddReminderForm = () => {
       await dispatch(
         addNewReminder({
           serverId,
-          newReminder: { 
-            message, 
+          newReminder: {
+            message,
             channel: selectedChannel?.name || '',
-            channelId: channelId, 
-            startTime: new Date(startTime).toISOString(), 
+            channelId: channelId,
+            startTime: new Date(startTime).toISOString(),
             recurrence,
             status: 'active',
           }
         })
       ).unwrap();
-      
+
+      dispatch(showToast({ message: 'リマインダーを新しく追加しました。', severity: 'success' }));
       navigate(`/servers/${serverId}`);
     } catch (error) {
       console.error('Failed to save the reminder: ', error);
+      dispatch(showToast({ message: 'リマインダーの追加に失敗しました。', severity: 'error' }));
     }
   };
-  
+
   const tileClassName = ({ date, view }: { date: Date, view: string }) => {
     if (view === 'month') {
       const dayName = weekDays[date.getDay()];
@@ -141,12 +154,12 @@ export const AddReminderForm = () => {
     }
     return null;
   };
-  
+
   const renderIntervalClocks = () => {
     if (!startTimeValue) return null;
     const now = new Date();
     const clocks = [];
-    
+
     let nextStartTime = new Date(startTimeValue);
     while (nextStartTime <= now) {
       nextStartTime.setHours(nextStartTime.getHours() + intervalHours);
@@ -172,7 +185,7 @@ export const AddReminderForm = () => {
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <Stack spacing={3}>
           <TextField label="メッセージ" value={message} onChange={(e) => setMessage(e.target.value)} required fullWidth />
-          
+
           <Stack direction="row" spacing={1} alignItems="center">
             <FormControl fullWidth>
               <InputLabel id="channel-select-label">チャンネル</InputLabel>
@@ -209,7 +222,7 @@ export const AddReminderForm = () => {
               NOW!
             </Button>
           </Stack>
-          
+
           <FormControl component="fieldset">
             <FormLabel component="legend">サイクル</FormLabel>
             <RadioGroup row value={recurrenceType} onChange={(e) => setRecurrenceType(e.target.value as any)}>
@@ -267,6 +280,8 @@ export const AddReminderForm = () => {
                     tileClassName={tileClassName}
                     showNeighboringMonth={false}
                     showNavigation={false}
+                    formatShortWeekday={(_locale, date) => ['日', '月', '火', '水', '木', '金', '土'][date.getDay()]}
+                    formatDay={isSmallScreen ? (_locale, date) => date.getDate().toString() : undefined}
                   />
                 </Box>
               )}
