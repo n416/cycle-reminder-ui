@@ -129,20 +129,20 @@ const calculateNextOccurrence = (reminder: Reminder): Date | null => {
       nextDate.setHours(startDate.getHours(), startDate.getMinutes(), startDate.getSeconds(), 0);
 
       if (nextDate <= now) {
-          nextDate.setDate(nextDate.getDate() + 1);
+        nextDate.setDate(nextDate.getDate() + 1);
       }
-      
+
       for (let i = 0; i < 7; i++) {
-          if (targetDaysOfWeek.has(nextDate.getDay())) {
-              let finalDate = new Date(nextDate);
-              finalDate.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
-              if(finalDate < startDate) {
-                  nextDate.setDate(nextDate.getDate() + 1);
-                  continue;
-              };
-              return finalDate;
-          }
-          nextDate.setDate(nextDate.getDate() + 1);
+        if (targetDaysOfWeek.has(nextDate.getDay())) {
+          let finalDate = new Date(nextDate);
+          finalDate.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
+          if (finalDate < startDate) {
+            nextDate.setDate(nextDate.getDate() + 1);
+            continue;
+          };
+          return finalDate;
+        }
+        nextDate.setDate(nextDate.getDate() + 1);
       }
     }
   }
@@ -167,23 +167,15 @@ export const ReminderList = () => {
   const reminders = useAppSelector(selectAllReminders);
   const remindersStatus = useAppSelector(getRemindersStatus);
   const error = useAppSelector(state => state.reminders.error);
-  
+
   const servers = useAppSelector(selectAllServers);
   const serversStatus = useAppSelector(getServersStatus);
   const lastFetched = useAppSelector(getLastFetched);
   const writeToken = useAppSelector(selectWriteTokenForServer(serverId!));
-  
+
   const currentServer = servers.find(s => s.id === serverId);
   const isServerAdmin = currentServer?.role === 'admin';
   const canWrite = isServerAdmin || !!writeToken;
-  
-  // --- ★★★ ここから調査用ログを追加 ★★★ ---
-  console.log('%c[ReminderList] レンダリングされました。', 'color: cyan; font-weight: bold;');
-  console.log('[ReminderList] 現在のサーバーリストの読み込み状態:', serversStatus);
-  console.log('[ReminderList] URLから取得したサーバーID:', serverId);
-  console.log('[ReminderList] Reduxストアから見つかった現在のサーバー情報:', currentServer);
-  console.log('[ReminderList] 管理者判定の結果 (isServerAdmin):', isServerAdmin);
-  // --- ★★★ ここまで追加 ★★★ ---
 
   const serverName = currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer.id, currentServer.icon) : null;
@@ -248,7 +240,7 @@ export const ReminderList = () => {
       window.history.replaceState({ ...location.state, linkedReminderId: null }, document.title);
     }
   }, [remindersStatus, reminders, location.state, dispatch]);
-  
+
   const handleUnlock = async () => {
     if (!password || !serverId) return;
     try {
@@ -272,15 +264,30 @@ export const ReminderList = () => {
     setCurrentReminderId(null);
   };
 
-  const handleTestSend = (message: string) => {
-    const transformedMessage = message.replace(/@/g, 'あっと：');
-    const fullTestMessage = `＝＝＝テスト送信です＝＝＝\n${transformedMessage}`;
-    console.log('--- Test Send ---');
-    console.log(fullTestMessage);
-    console.log('-----------------');
-    dispatch(showToast({ message: 'テスト送信しました！', severity: 'success' }));
+  // --- ★★★ ここからテスト送信のロジックを修正 ★★★ ---
+  const handleTestSend = async (reminder: Reminder) => {
+    if (!canWrite) {
+      dispatch(showToast({ message: 'テスト送信の権限がありません。', severity: 'error' }));
+      return;
+    }
+    try {
+      await apiClient.post(`/reminders/${reminder.serverId}/test-send`,
+        {
+          channelId: reminder.channelId,
+          message: reminder.message
+        },
+        {
+          headers: { 'x-write-token': writeToken }
+        }
+      );
+      dispatch(showToast({ message: 'テスト送信しました！', severity: 'success' }));
+    } catch (error) {
+      console.error('Failed to send test message:', error);
+      dispatch(showToast({ message: 'テスト送信に失敗しました。', severity: 'error' }));
+    }
   };
-  
+  // --- ★★★ ここまで修正 ★★★ ---
+
   const selectedReminder = reminders.find(r => r.id === currentReminderId);
 
   let content;
@@ -314,9 +321,9 @@ export const ReminderList = () => {
               ) : (
                 <Stack spacing={2}>
                   <Stack spacing={1.5}>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }}/><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><CalendarMonthIcon color="action" sx={{ fontSize: 20 }}/><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{isValidDate ? formatStartTime(startTime) : "無効な日付"}</Typography></Stack>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" sx={{ fontSize: 20 }}/><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
+                    <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
+                    <Stack direction="row" alignItems="center" spacing={1.5}><CalendarMonthIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{isValidDate ? formatStartTime(startTime) : "無効な日付"}</Typography></Stack>
+                    <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
                   </Stack>
                   <Divider />
                   <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
@@ -342,7 +349,7 @@ export const ReminderList = () => {
 
       <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Stack direction="row" spacing={2} alignItems="center">
-          <Avatar src={serverIconUrl || undefined}><ServerIcon iconName={null} serverName={serverName}/></Avatar>
+          <Avatar src={serverIconUrl || undefined}><ServerIcon iconName={null} serverName={serverName} /></Avatar>
           <Typography variant="h5">{serverName}</Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
@@ -358,7 +365,7 @@ export const ReminderList = () => {
       </Stack>
 
       <Stack spacing={1.5}>{content}</Stack>
-      
+
       <Menu anchorEl={menuAnchorEl} open={isMenuOpen} onClose={handleMenuClose}>
         {selectedReminder && (
           <div>
@@ -366,17 +373,17 @@ export const ReminderList = () => {
               <ListItemIcon>{selectedReminder.status === 'paused' ? <PlayCircleOutlineIcon fontSize="small" /> : <PauseCircleOutlineIcon fontSize="small" />}</ListItemIcon>
               <ListItemText>{selectedReminder.status === 'paused' ? '再開する' : '休止する'}</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => { handleTestSend(selectedReminder.message); handleMenuClose(); }}>
+            <MenuItem onClick={() => { handleTestSend(selectedReminder); handleMenuClose(); }}>
               <ListItemIcon><SendIcon fontSize="small" /></ListItemIcon>
               <ListItemText>テスト送信</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem disabled={!canWrite} sx={{ color: 'error.main' }} onClick={() => { 
-                if (serverId) {
-                  dispatch(deleteExistingReminder({ id: selectedReminder.id, serverId: serverId }));
-                }
-                handleMenuClose(); 
-              }}>
+            <MenuItem disabled={!canWrite} sx={{ color: 'error.main' }} onClick={() => {
+              if (serverId) {
+                dispatch(deleteExistingReminder({ id: selectedReminder.id, serverId: serverId }));
+              }
+              handleMenuClose();
+            }}>
               <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
               <ListItemText>削除</ListItemText>
             </MenuItem>
