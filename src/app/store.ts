@@ -5,7 +5,8 @@ import serversReducer from '@/features/servers/serversSlice';
 import authReducer from '@/features/auth/authSlice';
 import channelsReducer from '@/features/channels/channelsSlice';
 import toastReducer from '@/features/toast/toastSlice';
-import missedNotificationsReducer from '@/features/missed-notifications/missedNotificationsSlice'; // 1. インポート
+import missedNotificationsReducer from '@/features/missed-notifications/missedNotificationsSlice';
+import emojisReducer from '@/features/emojis/emojisSlice'; // 1. インポート
 
 export const store = configureStore({
   reducer: {
@@ -15,7 +16,8 @@ export const store = configureStore({
     auth: authReducer,
     channels: channelsReducer,
     toast: toastReducer,
-    missedNotifications: missedNotificationsReducer, // 2. 登録
+    missedNotifications: missedNotificationsReducer,
+    emojis: emojisReducer, // 2. 登録
   },
 });
 

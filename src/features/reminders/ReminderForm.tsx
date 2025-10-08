@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks.ts';
 import { addNewReminder, updateExistingReminder, Reminder } from './remindersSlice.ts';
 import { fetchChannels, selectChannelsForServer, getChannelsStatus } from '../channels/channelsSlice.ts';
+import { fetchEmojis, selectEmojisForServer, getEmojisStatus, Emoji } from '../emojis/emojisSlice.ts';
 import { showToast } from '@/features/toast/toastSlice';
 import {
   Box,
   TextField,
   Button,
   Stack,
+  Typography,
   FormControl,
   FormLabel,
   RadioGroup,
@@ -24,16 +26,27 @@ import {
   Paper,
   useMediaQuery,
   useTheme,
-  Typography,
-  Divider
+  Divider,
+  Chip,
+  Avatar,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AddReactionIcon from '@mui/icons-material/AddReaction';
 import Calendar from 'react-calendar';
 import Clock from 'react-clock';
 import 'react-calendar/dist/Calendar.css';
 import 'react-clock/dist/Clock.css';
+import './Calendar.css';
+import './Clock.css';
 
 const toLocalISOString = (date: Date) => {
   const tzoffset = date.getTimezoneOffset() * 60000;
@@ -70,12 +83,15 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
   const channels = useAppSelector(selectChannelsForServer(serverId!));
   const channelsStatus = useAppSelector(getChannelsStatus);
+  const emojis = useAppSelector(selectEmojisForServer(serverId!));
+  const emojisStatus = useAppSelector(getEmojisStatus);
 
   useEffect(() => {
-    if (serverId && !channels) {
-      dispatch(fetchChannels({ serverId }));
+    if (serverId) {
+      if (!channels) dispatch(fetchChannels({ serverId }));
+      if (!emojis) dispatch(fetchEmojis({ serverId }));
     }
-  }, [serverId, channels, dispatch]);
+  }, [serverId, channels, emojis, dispatch]);
 
   const [message, setMessage] = useState(reminder?.message || '');
   const [channelId, setChannelId] = useState(reminder?.channelId || '');
@@ -85,7 +101,11 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
   const [recurrenceType, setRecurrenceType] = useState(reminder?.recurrence.type || 'none');
   const [weeklyDays, setWeeklyDays] = useState(reminder?.recurrence.type === 'weekly' ? reminder.recurrence.days : []);
   const [intervalHours, setIntervalHours] = useState(reminder?.recurrence.type === 'interval' ? reminder.recurrence.hours : 1);
+  const [selectedEmojis, setSelectedEmojis] = useState<string[]>(reminder?.selectedEmojis || []);
   
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
+
   useEffect(() => {
     if (channels && !channelId) {
       if (mode === 'edit' && reminder?.channelId) {
@@ -124,12 +144,10 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
     let status: 'active' | 'paused' = mode === 'edit' ? reminder!.status : 'active';
 
     if (recurrenceType === 'weekly') {
-      // --- ★★★ ここから修正 ★★★ ---
       if (weeklyDays.length === 0) {
         status = 'paused';
         dispatch(showToast({ message: '曜日が未選択のため、休止状態で保存します。', severity: 'warning' }));
       }
-      // --- ★★★ ここまで修正 ★★★ ---
       recurrence = { type: 'weekly', days: weeklyDays };
     } else if (recurrenceType === 'interval') {
       recurrence = { type: 'interval', hours: Number(intervalHours) };
@@ -145,11 +163,12 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
         startTime: new Date(startTime).toISOString(),
         recurrence,
         status,
+        selectedEmojis,
     };
 
     try {
       if (mode === 'add') {
-        await dispatch(addNewReminder({ serverId, newReminder: reminderData })).unwrap();
+        await dispatch(addNewReminder({ serverId, newReminder: reminderData as Omit<Reminder, 'id' | 'serverId'> })).unwrap();
         dispatch(showToast({ message: 'リマインダーを新しく追加しました。', severity: 'success' }));
         navigate(`/servers/${serverId}`);
       } else {
@@ -205,6 +224,12 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
       );
     }
     return clocks;
+  };
+
+  const handleEmojiToggle = (emojiId: string) => {
+    setSelectedEmojis((current) =>
+      current.includes(emojiId) ? current.filter((id) => id !== emojiId) : [...current, emojiId]
+    );
   };
 
   const formContent = (
@@ -300,7 +325,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
           variant={mode === 'edit' ? 'filled' : 'outlined'}
         />
       )}
-
+      
       {startTimeValue && (
         <Paper variant="outlined" sx={{ p: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
           {recurrenceType === 'none' && (
@@ -325,6 +350,106 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
           {recurrenceType === 'interval' && renderIntervalClocks()}
         </Paper>
       )}
+
+      <Box>
+        <FormLabel component="legend">スタンプ設定 (任意)</FormLabel>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+          <Paper 
+            variant="outlined" 
+            sx={{ 
+              flexGrow: 1,
+              p: 1, 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              gap: 0.5, 
+              alignItems: 'center',
+              minHeight: '56px',
+              backgroundColor: mode === 'edit' ? 'action.hover' : 'transparent',
+            }}
+          >
+            {selectedEmojis.length > 0 ? selectedEmojis.map((value) => {
+              const emoji = emojis?.find(e => e.id === value);
+              if (!emoji) return null;
+              const isCustom = 'url' in emoji;
+              return (
+                <Chip
+                  key={value}
+                  label={isCustom ? emoji.name : ''}
+                  size="small"
+                  avatar={isCustom ? <Avatar src={(emoji as Emoji).url} /> : <Avatar sx={{ bgcolor: 'transparent', fontSize: '1rem' }}>{emoji.id}</Avatar>}
+                  onDelete={() => setSelectedEmojis(prev => prev.filter(id => id !== value))}
+                />
+              );
+            }) : <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>スタンプを追加...</Typography>}
+            <IconButton
+              size="small"
+              onClick={() => setIsEmojiPickerOpen(true)}
+              disabled={!emojis}
+              sx={{ ml: 'auto' }}
+            >
+              <AddReactionIcon />
+            </IconButton>
+          </Paper>
+          <IconButton onClick={() => dispatch(fetchEmojis({ serverId: serverId!, forceRefresh: true }))} disabled={emojisStatus === 'loading'}>
+            {emojisStatus === 'loading' ? <CircularProgress size={24} /> : <RefreshIcon />}
+          </IconButton>
+        </Stack>
+      </Box>
+
+      <Dialog open={isEmojiPickerOpen} onClose={() => setIsEmojiPickerOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ p: 0 }}>
+          <Tabs value={activeTab} onChange={(_e, newValue) => setActiveTab(newValue)} variant="fullWidth">
+            <Tab label="カスタム" />
+            <Tab label="デフォルト" />
+          </Tabs>
+        </DialogTitle>
+        <DialogContent sx={{ p: 1 }}>
+          <Box sx={{ minHeight: '300px' }}>
+            {emojis ? (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                {activeTab === 0 && emojis.filter(e => 'url' in e).map(emoji => (
+                  <Tooltip title={emoji.name || ''} key={emoji.id}>
+                    <IconButton 
+                      onClick={() => handleEmojiToggle(emoji.id)}
+                      sx={{ 
+                        borderRadius: 1, 
+                        border: selectedEmojis.includes(emoji.id) ? `2px solid ${theme.palette.primary.main}` : '2px solid transparent'
+                      }}
+                    >
+                      <img src={(emoji as Emoji).url} alt={emoji.name || ''} height="32" width="32" />
+                    </IconButton>
+                  </Tooltip>
+                ))}
+                {activeTab === 0 && emojis.filter(e => 'url' in e).length === 0 && <Typography sx={{p: 2}}>カスタム絵文字はありません</Typography>}
+                
+                {activeTab === 1 && emojis.filter(e => !('url' in e)).map(emoji => (
+                  <Tooltip title={emoji.name || ''} key={emoji.id}>
+                    <IconButton 
+                      onClick={() => handleEmojiToggle(emoji.id)}
+                      sx={{ 
+                        fontSize: '1.5rem', 
+                        borderRadius: 1,
+                        width: '48px',
+                        height: '48px',
+                        border: selectedEmojis.includes(emoji.id) ? `2px solid ${theme.palette.primary.main}` : '2px solid transparent'
+                      }}
+                    >
+                      {emoji.id}
+                    </IconButton>
+                  </Tooltip>
+                ))}
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <CircularProgress />
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsEmojiPickerOpen(false)}>閉じる</Button>
+        </DialogActions>
+      </Dialog>
 
       { mode === 'add' ? (
         <>

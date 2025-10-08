@@ -265,7 +265,7 @@ export const ReminderList = () => {
   };
 
   const handleTestSend = async (reminder: Reminder) => {
-    if (!canWrite) {
+    if (!canWrite || !writeToken) {
       dispatch(showToast({ message: 'テスト送信の権限がありません。', severity: 'error' }));
       return;
     }
@@ -273,7 +273,8 @@ export const ReminderList = () => {
       await apiClient.post(`/reminders/${reminder.serverId}/test-send`, 
         { 
           channelId: reminder.channelId, 
-          message: reminder.message 
+          message: reminder.message,
+          selectedEmojis: reminder.selectedEmojis,
         }, 
         {
           headers: { 'x-write-token': writeToken }
@@ -304,11 +305,9 @@ export const ReminderList = () => {
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
                 <SpeakerNotesIcon color="action" />
-                {/* --- ★★★ ここから修正 ★★★ --- */}
                 <Typography noWrap sx={{ flexGrow: 1, textDecoration: isPaused ? 'line-through' : 'none', color: isPaused ? 'text.disabled' : 'text.primary' }}>
                   {reminder.message.split('\n')[0]}
                 </Typography>
-                {/* --- ★★★ ここまで修正 ★★★ --- */}
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary', mr: 2 }}>
                   <EventAvailableIcon fontSize="small" />
                   <Typography variant="body2" noWrap>{formatNextOccurrence(reminder)}</Typography>
@@ -320,14 +319,12 @@ export const ReminderList = () => {
                 <EditReminderForm reminder={reminder} onCancel={() => setEditingId(null)} />
               ) : (
                 <Stack spacing={2}>
-                  {/* --- ★★★ ここから修正 ★★★ --- */}
                   <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                     <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
                       {reminder.message}
                     </Typography>
                   </Box>
                   <Divider />
-                  {/* --- ★★★ ここまで修正 ★★★ --- */}
                   <Stack spacing={1.5}>
                     <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }}/><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
                     <Stack direction="row" alignItems="center" spacing={1.5}><CalendarMonthIcon color="action" sx={{ fontSize: 20 }}/><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{isValidDate ? formatStartTime(startTime) : "無効な日付"}</Typography></Stack>
