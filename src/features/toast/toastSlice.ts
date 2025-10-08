@@ -1,35 +1,33 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { ToastNotification } from './types';
 
 interface ToastState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'info' | 'warning' | 'error';
-  duration: number | null;
+  notifications: ToastNotification[];
 }
 
 const initialState: ToastState = {
-  open: false,
-  message: '',
-  severity: 'info',
-  duration: 4000,
+  notifications: [],
 };
 
 export const toastSlice = createSlice({
   name: 'toast',
   initialState,
   reducers: {
-    showToast: (state, action: PayloadAction<Partial<Omit<ToastState, 'open'>>>) => {
-      state.open = true;
-      state.message = action.payload.message || initialState.message;
-      state.severity = action.payload.severity || initialState.severity;
-      state.duration = action.payload.duration === null ? null : action.payload.duration || initialState.duration;
+    showToast: (state, action: PayloadAction<Omit<ToastNotification, 'key'>>) => {
+      state.notifications.push({
+        key: new Date().getTime() + Math.random(),
+        duration: 4000, // ★ デフォルトの表示時間を設定
+        ...action.payload,
+      });
     },
-    hideToast: (state) => {
-      state.open = false;
+    closeToast: (state, action: PayloadAction<number>) => {
+      state.notifications = state.notifications.filter(
+        (notification) => notification.key !== action.payload
+      );
     },
   },
 });
 
-export const { showToast, hideToast } = toastSlice.actions;
+export const { showToast, closeToast } = toastSlice.actions;
 
 export default toastSlice.reducer;

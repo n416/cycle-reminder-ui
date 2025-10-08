@@ -12,6 +12,8 @@ export const ThemeOverrides = () => {
     // 前回の 'react-calendar__month-view__days > button' のスタイル指定は削除
 
     '.react-calendar__tile--now': {
+      backgroundColor: 'transparent !important',
+      color: `${theme.palette.text.primary} !important`,
       border: `1px solid ${theme.palette.primary.main} !important` , // プライマリカラーで枠線を設定
       borderRadius: '4px !important',
     },
@@ -35,6 +37,8 @@ export const ThemeOverrides = () => {
       // 内側に背景色と同じ色の影を作り、隙間に見せる
       boxShadow: `inset 0 0 0 2px ${theme.palette.background.paper}`,
       '&:hover, &:focus': {
+
+        color: `${theme.palette.primary.contrastText}`,
         backgroundColor: theme.palette.action.hover,
       },
     },
