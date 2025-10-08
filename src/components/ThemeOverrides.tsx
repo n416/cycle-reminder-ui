@@ -12,8 +12,8 @@ export const ThemeOverrides = () => {
     // 前回の 'react-calendar__month-view__days > button' のスタイル指定は削除
 
     '.react-calendar__tile--now': {
-      background: 'transparent !important',
-      color: `${theme.palette.text.primary} !important`,
+      border: `1px solid ${theme.palette.primary.main} !important` , // プライマリカラーで枠線を設定
+      borderRadius: '4px !important',
     },
     '.react-calendar__navigation button': {
       color: theme.palette.text.primary,

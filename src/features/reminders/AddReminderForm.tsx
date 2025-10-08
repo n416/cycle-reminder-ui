@@ -37,14 +37,11 @@ import 'react-clock/dist/Clock.css';
 import './Calendar.css';
 import './Clock.css';
 
-// --- ★★★ ここから修正 ★★★ ---
-// Dateオブジェクトを "YYYY-MM-DDTHH:mm" 形式のローカルタイム文字列に変換する
 const toLocalISOString = (date: Date) => {
-  const tzoffset = date.getTimezoneOffset() * 60000; // ミリ秒単位のオフセット
+  const tzoffset = date.getTimezoneOffset() * 60000;
   const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
   return localISOTime;
 };
-// --- ★★★ ここまで修正 ★★★ ---
 
 const weekDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const weekDayMap: { [key: string]: string } = {
@@ -105,7 +102,7 @@ export const AddReminderForm = () => {
   const handleSetNow = () => {
     const now = new Date();
     now.setSeconds(0, 0);
-    setStartTime(toLocalISOString(now)); // ★ toLocalISOStringを使用
+    setStartTime(toLocalISOString(now));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -184,7 +181,15 @@ export const AddReminderForm = () => {
       </Typography>
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <Stack spacing={3}>
-          <TextField label="メッセージ" value={message} onChange={(e) => setMessage(e.target.value)} required fullWidth />
+          <TextField
+            label="メッセージ"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            required
+            fullWidth
+            multiline
+            rows={4}
+          />
 
           <Stack direction="row" spacing={1} alignItems="center">
             <FormControl fullWidth>
