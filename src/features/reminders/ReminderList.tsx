@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
 import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder } from './remindersSlice.ts';
 import { selectAllServers, getServersStatus, getLastFetched, fetchServers } from '@/features/servers/serversSlice';
-import { selectWriteTokenForServer, setWriteToken } from '@/features/auth/authSlice';
+import { selectWriteTokenForServer, setWriteToken, selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import { MissedNotifications } from '../missed-notifications/MissedNotifications.tsx';
 import {
@@ -172,10 +172,13 @@ export const ReminderList = () => {
   const serversStatus = useAppSelector(getServersStatus);
   const lastFetched = useAppSelector(getLastFetched);
   const writeToken = useAppSelector(selectWriteTokenForServer(serverId!));
+  const userRole = useAppSelector(selectUserRole);
   
   const currentServer = servers.find(s => s.id === serverId);
-  const isServerAdmin = currentServer?.role === 'admin';
-  const canWrite = isServerAdmin || !!writeToken;
+  const isDiscordAdmin = currentServer?.role === 'admin';
+  
+  const hasAdminRights = isDiscordAdmin && (userRole === 'owner' || userRole === 'tester');
+  const canWrite = hasAdminRights || !!writeToken;
 
   const serverName = currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer.id, currentServer.icon) : null;
@@ -205,7 +208,7 @@ export const ReminderList = () => {
   }, [serverId, dispatch]);
 
   useEffect(() => {
-    if (currentServer && isServerAdmin && !writeToken) {
+    if (currentServer && hasAdminRights && !writeToken) {
       const getAdminToken = async () => {
         try {
           const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
@@ -217,7 +220,7 @@ export const ReminderList = () => {
       };
       getAdminToken();
     }
-  }, [currentServer, isServerAdmin, writeToken, serverId, dispatch]);
+  }, [currentServer, hasAdminRights, writeToken, serverId, dispatch]);
 
   useEffect(() => {
     if (remindersStatus === 'succeeded' && location.state?.linkedReminderId) {
@@ -350,7 +353,7 @@ export const ReminderList = () => {
 
   return (
     <>
-      {isServerAdmin && serverId && <MissedNotifications serverId={serverId} />}
+      {hasAdminRights && serverId && <MissedNotifications serverId={serverId} />}
 
       <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Stack direction="row" spacing={2} alignItems="center">
@@ -378,10 +381,14 @@ export const ReminderList = () => {
               <ListItemIcon>{selectedReminder.status === 'paused' ? <PlayCircleOutlineIcon fontSize="small" /> : <PauseCircleOutlineIcon fontSize="small" />}</ListItemIcon>
               <ListItemText>{selectedReminder.status === 'paused' ? '再開する' : '休止する'}</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => { handleTestSend(selectedReminder); handleMenuClose(); }}>
+            
+            {/* ★★★★★ ここからがセキュリティー修正箇所です ★★★★★ */}
+            <MenuItem disabled={!canWrite} onClick={() => { handleTestSend(selectedReminder); handleMenuClose(); }}>
               <ListItemIcon><SendIcon fontSize="small" /></ListItemIcon>
               <ListItemText>テスト送信</ListItemText>
             </MenuItem>
+            {/* ★★★★★ ここまで ★★★★★ */}
+
             <Divider />
             <MenuItem disabled={!canWrite} sx={{ color: 'error.main' }} onClick={() => { 
                 if (serverId) {
@@ -396,7 +403,7 @@ export const ReminderList = () => {
         )}
       </Menu>
 
-      {canWrite && (
+      {canWrite && userRole !== 'supporter' && (
         <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={() => navigate(`/servers/${serverId}/add`)}>
           <AddIcon />
         </Fab>

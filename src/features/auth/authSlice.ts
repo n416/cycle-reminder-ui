@@ -1,26 +1,33 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import type { RootState } from '@/app/store.ts';
+import apiClient from '@/api/client';
 
 const getInitialWriteTokens = (): { [serverId: string]: string } => {
   try {
     const item = sessionStorage.getItem('writeTokens');
-    // --- ★★★ 調査用ログを追加 ★★★ ---
-    console.log('%c[authSlice] アプリケーション起動: sessionStorageからトークンを読み込みます。', 'color: green; font-weight: bold;');
-    console.log('[authSlice] 読み込んだトークン:', item ? JSON.parse(item) : 'なし');
-    // --- ★★★ ここまで追加 ★★★ ---
     return item ? JSON.parse(item) : {};
   } catch (error) {
-    console.error('Could not parse writeTokens from sessionStorage:', error);
     return {};
   }
 };
 
+export type UserRole = 'owner' | 'supporter' | 'tester' | 'unknown';
+
+// ユーザーの役割情報を取得する非同期Thunk
+export const fetchUserStatus = createAsyncThunk('auth/fetchUserStatus', async () => {
+    // ★ 変更点: レスポンスからroleを取得する
+    const response = await apiClient.get('/auth/status');
+    return response.data.role as UserRole;
+});
+
 interface AuthState {
   writeTokens: { [serverId: string]: string };
+  userRole: UserRole;
 }
 
 const initialState: AuthState = {
   writeTokens: getInitialWriteTokens(),
+  userRole: 'unknown',
 };
 
 export const authSlice = createSlice({
@@ -29,35 +36,31 @@ export const authSlice = createSlice({
   reducers: {
     setWriteToken: (state, action: PayloadAction<{ serverId: string; token: string }>) => {
       const { serverId, token } = action.payload;
-      // --- ★★★ 調査用ログを追加 ★★★ ---
-      console.log('%c[authSlice] setWriteTokenが呼ばれました。', 'color: green; font-weight: bold;');
-      console.log('[authSlice] 保存するサーバーID:', serverId);
-      console.log('[authSlice] 保存するトークン:', token);
-      // --- ★★★ ここまで追加 ★★★ ---
       state.writeTokens[serverId] = token;
-      try {
-        sessionStorage.setItem('writeTokens', JSON.stringify(state.writeTokens));
-        console.log('[authSlice] sessionStorageへの保存が成功しました。現在の内容:', state.writeTokens);
-      } catch (error) {
-        console.error('Could not save writeTokens to sessionStorage:', error);
-      }
+      sessionStorage.setItem('writeTokens', JSON.stringify(state.writeTokens));
     },
     clearWriteTokens: (state) => {
-      // --- ★★★ 調査用ログを追加 ★★★ ---
-      console.log('%c[authSlice] clearWriteTokensが呼ばれました。', 'color: red; font-weight: bold;');
-      // --- ★★★ ここまで追加 ★★★ ---
       state.writeTokens = {};
-      try {
-        sessionStorage.removeItem('writeTokens');
-      } catch (error) {
-        console.error('Could not remove writeTokens from sessionStorage:', error);
-      }
+      sessionStorage.removeItem('writeTokens');
     },
+    setUserRole: (state, action: PayloadAction<UserRole>) => {
+        state.userRole = action.payload;
+    }
   },
+  extraReducers: (builder) => {
+    builder
+        .addCase(fetchUserStatus.fulfilled, (state, action) => {
+            state.userRole = action.payload;
+        })
+        .addCase(fetchUserStatus.rejected, (state) => {
+            state.userRole = 'supporter'; // 取得失敗時は安全のためサポーター扱い
+        });
+  }
 });
 
-export const { setWriteToken, clearWriteTokens } = authSlice.actions;
+export const { setWriteToken, clearWriteTokens, setUserRole } = authSlice.actions;
 
 export const selectWriteTokenForServer = (serverId: string) => (state: RootState) => state.auth.writeTokens[serverId];
+export const selectUserRole = (state: RootState) => state.auth.userRole;
 
 export default authSlice.reducer;

@@ -1,4 +1,5 @@
 import { Route, Routes, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { LoginPage } from '@/pages/LoginPage';
@@ -7,18 +8,41 @@ import { ReminderList } from '@/features/reminders/ReminderList';
 import { AddReminderForm } from '@/features/reminders/AddReminderForm';
 import { ServerList } from '@/features/servers/ServerList';
 import { AuditLogView } from '@/features/auditLog/AuditLogView';
+import { useAppDispatch } from './app/hooks';
+import { fetchUserStatus } from './features/auth/authSlice';
 import { CssBaseline, Container } from '@mui/material';
-import { Toast } from '@/features/toast/Toast'; // 1. Toastをインポート
+import { SubscriptionPage } from '@/pages/SubscriptionPage';
+import { PaymentSuccessPage } from '@/pages/PaymentSuccessPage';
+import { PaymentCancelPage } from '@/pages/PaymentCancelPage';
+import { Toast } from '@/features/toast/Toast';
 
 function App() {
+  console.log("【Debug】1. App component is rendering."); // ★ デバッグログ
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    const token = localStorage.getItem('auth-token');
+    if (token) {
+      console.log("【Debug】App: Token found, dispatching fetchUserStatus."); // ★ デバッグログ
+      dispatch(fetchUserStatus());
+    } else {
+      console.log("【Debug】App: No token found."); // ★ デバッグログ
+    }
+  }, [dispatch]);
+
   return (
     <>
       <CssBaseline />
-      {/* 2. Toastコンポーネントを配置 */}
       <Toast />
       <Routes>
+        {/* ★ デバッグ用ルート */}
+        <Route path="/ping" element={<h1>Pong! Page is working.</h1>} />
+
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/subscribe" element={<SubscriptionPage />} />
+        <Route path="/payment/success" element={<PaymentSuccessPage />} />
+        <Route path="/payment/cancel" element={<PaymentCancelPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/" element={<Navigate to="/servers" replace />} />

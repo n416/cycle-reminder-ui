@@ -3,7 +3,8 @@ import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
 import { selectAllLogs, getLogsStatus, fetchLogs, LogEntry } from './auditLogSlice';
 import { addNewReminder } from '@/features/reminders/remindersSlice';
 import { selectAllServers } from '@/features/servers/serversSlice';
-import { selectWriteTokenForServer } from '@/features/auth/authSlice';
+// ★★★★★ selectUserRole をインポート ★★★★★
+import { selectWriteTokenForServer, selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import {
   Box,
@@ -66,9 +67,14 @@ export const AuditLogView = () => {
   
   const servers = useAppSelector(selectAllServers);
   const writeToken = useAppSelector(selectWriteTokenForServer(serverId!));
+  const userRole = useAppSelector(selectUserRole); // ★★★ アプリの役割を取得 ★★★
   const currentServer = servers.find(s => s.id === serverId);
-  const isServerAdmin = currentServer?.role === 'admin';
-  const canWrite = isServerAdmin || !!writeToken;
+  
+  // ★★★★★ ここからがセキュリティー修正箇所です ★★★★★
+  const isDiscordAdmin = currentServer?.role === 'admin';
+  const hasAdminRights = isDiscordAdmin && (userRole === 'owner' || userRole === 'tester');
+  const canWrite = hasAdminRights || !!writeToken;
+  // ★★★★★ ここまで ★★★★★
 
   useEffect(() => {
     if (serverId) {
@@ -89,6 +95,7 @@ export const AuditLogView = () => {
         startTime: dataToRestore.startTime,
         recurrence: dataToRestore.recurrence,
         status: 'paused',
+        selectedEmojis: dataToRestore.selectedEmojis || [],
       }
     })).unwrap()
      .then(() => {
@@ -139,13 +146,16 @@ export const AuditLogView = () => {
                 <Box sx={{ mt: 1, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
                   <DiffViewer log={log} />
                 </Box>
-                {(log.action === '更新' || log.action === '削除') && (
+
+                {/* ★★★★★ ボタンをcanWriteで囲み、権限がない場合は非表示にする ★★★★★ */}
+                {canWrite && (log.action === '更新' || log.action === '削除') && (
                   <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button variant="outlined" size="small" onClick={() => handleRestore(log)} disabled={!canWrite}>
+                    <Button variant="outlined" size="small" onClick={() => handleRestore(log)}>
                       この内容で復元
                     </Button>
                   </Box>
                 )}
+
               </CardContent>
             </Card>
           );

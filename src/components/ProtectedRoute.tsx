@@ -1,40 +1,42 @@
 import { Navigate, Outlet } from 'react-router-dom';
+import { useAppSelector } from '@/app/hooks';
+import { selectUserRole } from '@/features/auth/authSlice';
+import { Box, CircularProgress } from '@mui/material';
 
 const isAuthenticated = () => {
   const token = localStorage.getItem('auth-token');
-  console.log('[ProtectedRoute] 認証状態をチェック中。トークンの有無:', token ? 'あり' : 'なし');
-
-  if (!token) {
-    return false;
-  }
-
+  if (!token) return false;
   try {
-    // 1. トークンをデコードしてペイロードを取得
     const payload = JSON.parse(atob(token.split('.')[1]));
-    
-    // 2. 有効期限（exp）をチェック
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) {
-      console.log('[ProtectedRoute] トークンは有効期限切れです。');
-      localStorage.removeItem('auth-token'); // 期限切れのトークンは削除
+      localStorage.removeItem('auth-token');
       return false;
     }
-    
-    // トークン形式が正しく、有効期限内であれば認証済みとみなす
     return true;
-
   } catch (error) {
-    console.error('[ProtectedRoute] トークンの解析に失敗しました。不正なトークンの可能性があります。', error);
-    localStorage.removeItem('auth-token'); // 不正なトークンは削除
+    localStorage.removeItem('auth-token');
     return false;
   }
 };
 
 export const ProtectedRoute = () => {
+  console.log("【Debug】2. ProtectedRoute component is rendering."); // ★ デバッグログ
+  const userRole = useAppSelector(selectUserRole);
+  console.log(`【Debug】ProtectedRoute: Current userRole is '${userRole}'.`); // ★ デバッグログ
+
   if (!isAuthenticated()) {
-    console.log('[ProtectedRoute] 未認証と判断。ログインページにリダイレクトします。');
+    console.log("【Debug】ProtectedRoute: Not authenticated. Redirecting to /login."); // ★ デバッグログ
     return <Navigate to="/login" />;
   }
-  console.log('[ProtectedRoute] 認証済みと判断。アプリケーション本体を表示します。');
+
+  // 役割情報がまだ読み込まれていない場合
+  if (userRole === 'unknown') {
+    console.log("【Debug】ProtectedRoute: userRole is 'unknown'. Showing spinner."); // ★ デバッグログ
+    return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><CircularProgress /></Box>;
+  }
+
+  // ログイン済みであればコンテンツを表示
+  console.log("【Debug】ProtectedRoute: Authenticated and role is known. Rendering Outlet."); // ★ デバッグログ
   return <Outlet />;
 };

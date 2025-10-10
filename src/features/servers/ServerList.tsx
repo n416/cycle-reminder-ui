@@ -27,9 +27,10 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddLinkIcon from '@mui/icons-material/AddLink';
 import useLocalStorage from '@/hooks/useLocalStorage';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/app/hooks';
 import { fetchServers, selectAllServers, getServersStatus, getLastFetched, Server, updateServerPassword } from './serversSlice';
+import { selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 
 const OAUTH_URL = `https://discord.com/api/oauth2/authorize?client_id=${import.meta.env.VITE_DISCORD_CLIENT_ID}&permissions=268435456&scope=bot%20applications.commands`;
@@ -43,69 +44,75 @@ interface ServerListSectionProps {
   title: string;
   servers: Server[];
   onSettingsClick: (server: Server) => void;
+  userRole: 'owner' | 'supporter' | 'tester' | 'unknown';
 }
 
-const ServerListSection = ({ title, servers, onSettingsClick }: ServerListSectionProps) => (
-  <Box>
-    <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>
-      {title}
-    </Typography>
-    {servers.length > 0 ? (
-      <List sx={{ bgcolor: 'background.paper', borderRadius: 2, boxShadow: 1, p: 0 }}>
-        {servers.map((server: Server, index: number) => (
-          <React.Fragment key={server.id}>
-            {/* --- ★★★ ここからListItemの構造を全面的に修正 ★★★ --- */}
-            <ListItem disablePadding>
-              <Box sx={{ width: '100%', p: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'center' }}>
-                
-                {/* 1段目: アイコンとサーバー名 (リンク付き) */}
-                <ListItemButton component={Link} to={`/servers/${server.id}`} sx={{ flexGrow: 1, p: 1, borderRadius: 1 }}>
-                  <ListItemAvatar>
-                    <Avatar src={getServerIconUrl(server.id, server.icon) || undefined}>
-                      {server.name.charAt(0)}
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText primary={server.name} />
-                </ListItemButton>
+const ServerListSection = ({ title, servers, onSettingsClick, userRole }: ServerListSectionProps) => {
+    
+    const handleAddBotClick = (server: Server) => {
+        // この関数はオーナー/テスターからしか呼ばれなくなった
+        window.open(`${OAUTH_URL}&guild_id=${server.id}`, '_blank', 'noopener,noreferrer');
+    };
 
-                {/* 2段目: 導入状況とボタン */}
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ pt: { xs: 1, sm: 0 }, pl: { xs: 0, sm: 2 } }}>
-                  <Chip
-                    label={server.isAdded ? "導入済み" : "未導入"}
-                    color={server.isAdded ? "success" : "default"}
-                    size="small"
-                  />
-                  {server.role === 'admin' && server.isAdded && (
-                    <IconButton edge="end" aria-label="settings" onClick={() => onSettingsClick(server)}>
-                      <SettingsIcon />
-                    </IconButton>
-                  )}
-                  {server.role === 'admin' && !server.isAdded && (
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      href={`${OAUTH_URL}&guild_id=${server.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      startIcon={<AddLinkIcon />}
-                    >
-                      導入
-                    </Button>
-                  )}
-                </Stack>
+    return (
+      <Box>
+        <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>
+          {title}
+        </Typography>
+        {servers.length > 0 ? (
+          <List sx={{ bgcolor: 'background.paper', borderRadius: 2, boxShadow: 1, p: 0 }}>
+            {servers.map((server: Server, index: number) => (
+              <React.Fragment key={server.id}>
+                <ListItem disablePadding>
+                  <Box sx={{ width: '100%', p: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'center' }}>
+                    
+                    <ListItemButton component={Link} to={`/servers/${server.id}`} sx={{ flexGrow: 1, p: 1, borderRadius: 1 }}>
+                      <ListItemAvatar>
+                        <Avatar src={getServerIconUrl(server.id, server.icon) || undefined}>
+                          {server.name.charAt(0)}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText primary={server.name} />
+                    </ListItemButton>
 
-              </Box>
-            </ListItem>
-            {/* --- ★★★ ここまで修正 ★★★ --- */}
-            {index < servers.length - 1 && <Divider component="li" />}
-          </React.Fragment>
-        ))}
-      </List>
-    ) : (
-      <Typography color="text.secondary">対象のサーバーはありません。</Typography>
-    )}
-  </Box>
-);
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ pt: { xs: 1, sm: 0 }, pl: { xs: 0, sm: 2 } }}>
+                      <Chip
+                        label={server.isAdded ? "導入済み" : "未導入"}
+                        color={server.isAdded ? "success" : "default"}
+                        size="small"
+                      />
+                      {server.role === 'admin' && server.isAdded && (userRole === 'owner' || userRole === 'tester') && (
+                        <IconButton edge="end" aria-label="settings" onClick={() => onSettingsClick(server)}>
+                          <SettingsIcon />
+                        </IconButton>
+                      )}
+
+                      {/* ★★★★★ ここからがセキュリティー修正箇所です ★★★★★ */}
+                      {server.role === 'admin' && !server.isAdded && (userRole === 'owner' || userRole === 'tester') && (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleAddBotClick(server)}
+                          startIcon={<AddLinkIcon />}
+                        >
+                          導入
+                        </Button>
+                      )}
+                      {/* ★★★★★ ここまで ★★★★★ */}
+
+                    </Stack>
+                  </Box>
+                </ListItem>
+                {index < servers.length - 1 && <Divider component="li" />}
+              </React.Fragment>
+            ))}
+          </List>
+        ) : (
+          <Typography color="text.secondary">対象のサーバーはありません。</Typography>
+        )}
+      </Box>
+    );
+};
 
 
 export const ServerList = () => {
@@ -114,11 +121,18 @@ export const ServerList = () => {
   const serversStatus = useAppSelector(getServersStatus);
   const lastFetched = useAppSelector(getLastFetched);
   const error = useAppSelector(state => state.servers.error);
+  const userRole = useAppSelector(selectUserRole);
   
   const [showOnlyAdded, setShowOnlyAdded] = useLocalStorage('showOnlyAddedServers', false);
   const [configuringServer, setConfiguringServer] = useState<Server | null>(null);
   
   const [newPassword, setNewPassword] = useState('');
+
+  useEffect(() => {
+    if (userRole === 'supporter') {
+      setShowOnlyAdded(true);
+    }
+  }, [userRole, setShowOnlyAdded]);
 
   useEffect(() => {
     const CACHE_DURATION = 5 * 60 * 1000;
@@ -167,8 +181,8 @@ export const ServerList = () => {
   } else if (servers.length > 0) {
     content = (
       <>
-        <ServerListSection title="管理サーバー" servers={adminServers} onSettingsClick={handleOpenSettings} />
-        <ServerListSection title="参加サーバー" servers={memberServers} onSettingsClick={handleOpenSettings} />
+        <ServerListSection title="管理サーバー" servers={adminServers} onSettingsClick={handleOpenSettings} userRole={userRole} />
+        <ServerListSection title="参加サーバー" servers={memberServers} onSettingsClick={handleOpenSettings} userRole={userRole} />
       </>
     );
   } else if (serversStatus === 'succeeded' && servers.length === 0) {

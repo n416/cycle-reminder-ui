@@ -16,6 +16,7 @@ export interface Reminder {
   startTime: string;
   recurrence: RecurrenceRule;
   status: 'active' | 'paused';
+  selectedEmojis?: string[]; // ★ 変更点
 }
 interface RemindersState {
   reminders: Reminder[];
