@@ -7,7 +7,7 @@ import apiClient from '@/api/client';
 
 export const LoginPage = () => {
   console.log("【Debug】LoginPage component is rendering."); // ★ デバッグログ
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEV || 'http://localhost:8080/api';
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
   
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
