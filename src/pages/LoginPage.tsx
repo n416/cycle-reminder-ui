@@ -71,7 +71,6 @@ export const LoginPage = () => {
           </Button>
         </Paper>
 
-        {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
         <Box component="footer" sx={{ mt: 4 }}>
           <Link
             href="https://komoju.com/scta/51icu6fab5vynnmz4yfjmvcdj"
@@ -83,8 +82,6 @@ export const LoginPage = () => {
             特定商取引法に基づく表記
           </Link>
         </Box>
-        {/* ★★★★★ ここまで ★★★★★ */}
-
 
         <Dialog open={open} onClose={handleClose}>
           <DialogTitle>テスター認証</DialogTitle>
