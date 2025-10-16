@@ -189,6 +189,7 @@ export const ReminderList = () => {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [isUnlocking, setIsUnlocking] = useState(false); // ★★★ ロック解除処理中かどうかの状態を追加 ★★★
   const isMenuOpen = Boolean(menuAnchorEl);
 
   useEffect(() => {
@@ -245,7 +246,7 @@ export const ReminderList = () => {
   }, [remindersStatus, reminders, location.state, dispatch]);
   
   const handleUnlock = async () => {
-    if (!password || !serverId) return;
+    if (!serverId) return;
     try {
       const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password });
       const { writeToken } = response.data;
@@ -257,6 +258,34 @@ export const ReminderList = () => {
       setPasswordError('パスワードが違います。');
     }
   };
+
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const handleEnableEditing = async () => {
+    if (!serverId) return;
+    setIsUnlocking(true); // 処理開始
+    try {
+      // 1. まずサーバーにパスワードが設定されているか問い合わせる
+      const statusRes = await apiClient.get(`/servers/${serverId}/password-status`);
+      const { hasPassword } = statusRes.data;
+
+      if (hasPassword) {
+        // 2. パスワードがあれば、従来通りモーダルを開く
+        setPasswordModalOpen(true);
+      } else {
+        // 3. パスワードがなければ、空のパスワードで直接トークンを要求する
+        const tokenRes = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
+        const { writeToken } = tokenRes.data;
+        dispatch(setWriteToken({ serverId, token: writeToken }));
+        dispatch(showToast({ message: '編集が有効になりました。', severity: 'success' }));
+      }
+    } catch (error) {
+      console.error("Failed to enable editing:", error);
+      dispatch(showToast({ message: '編集の有効化に失敗しました。', severity: 'error' }));
+    } finally {
+      setIsUnlocking(false); // 処理終了
+    }
+  };
+  // ★★★★★ ここまで ★★★★★
 
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>, reminderId: string) => {
     setMenuAnchorEl(event.currentTarget);
@@ -365,8 +394,13 @@ export const ReminderList = () => {
             操作ログ
           </Button>
           {!canWrite && (
-            <Button variant="outlined" startIcon={<LockOpenIcon />} onClick={() => setPasswordModalOpen(true)}>
-              編集を有効にする
+            <Button
+              variant="outlined"
+              startIcon={isUnlocking ? <CircularProgress size={20} /> : <LockOpenIcon />}
+              onClick={handleEnableEditing}
+              disabled={isUnlocking}
+            >
+              {isUnlocking ? '確認中...' : '編集を有効にする'}
             </Button>
           )}
         </Stack>
@@ -382,12 +416,10 @@ export const ReminderList = () => {
               <ListItemText>{selectedReminder.status === 'paused' ? '再開する' : '休止する'}</ListItemText>
             </MenuItem>
             
-            {/* ★★★★★ ここからがセキュリティー修正箇所です ★★★★★ */}
             <MenuItem disabled={!canWrite} onClick={() => { handleTestSend(selectedReminder); handleMenuClose(); }}>
               <ListItemIcon><SendIcon fontSize="small" /></ListItemIcon>
               <ListItemText>テスト送信</ListItemText>
             </MenuItem>
-            {/* ★★★★★ ここまで ★★★★★ */}
 
             <Divider />
             <MenuItem disabled={!canWrite} sx={{ color: 'error.main' }} onClick={() => { 
