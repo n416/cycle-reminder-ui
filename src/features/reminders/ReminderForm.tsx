@@ -48,23 +48,7 @@ import 'react-clock/dist/Clock.css';
 import './Calendar.css';
 import './Clock.css';
 
-// ★★★★★ ここからが修正箇所です ★★★★★
-const safeCreateDate = (dateSource: any): Date | null => {
-  if (!dateSource) return null;
-  if (dateSource instanceof Date) {
-    return dateSource;
-  }
-  if (typeof dateSource === 'string') {
-    const d = new Date(dateSource);
-    if (!isNaN(d.getTime())) return d;
-  }
-  if (typeof dateSource === 'object' && dateSource.seconds !== undefined) {
-    const d = new Date(dateSource.seconds * 1000);
-    if (!isNaN(d.getTime())) return d;
-  }
-  return null;
-}
-// ★★★★★ ここまで ★★★★★
+// ★★★★★ 複雑なsafeCreateDate関数を削除 ★★★★★
 
 const toLocalISOString = (date: Date) => {
   const tzoffset = date.getTimezoneOffset() * 60000;
@@ -115,13 +99,13 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
   const [message, setMessage] = useState(reminder?.message || '');
   const [channelId, setChannelId] = useState(reminder?.channelId || '');
-  
-  // ★★★★★ ここからが修正箇所です ★★★★★
-  const safeDate = reminder ? safeCreateDate(reminder.startTime) : null;
-  const [startTime, setStartTime] = useState(safeDate ? toLocalISOString(safeDate) : '');
-  const [startTimeValue, setStartTimeValue] = useState<Date | null>(safeDate);
+
+  // ★★★★★ startTimeの初期化をシンプルに修正 ★★★★★
+  const initialDate = reminder?.startTime ? new Date(reminder.startTime) : null;
+  const [startTime, setStartTime] = useState(initialDate ? toLocalISOString(initialDate) : '');
+  const [startTimeValue, setStartTimeValue] = useState<Date | null>(initialDate);
   // ★★★★★ ここまで ★★★★★
-  
+
   const [offsets, setOffsets] = useState(reminder?.notificationOffsets?.join(', ') || '0');
 
 
@@ -170,7 +154,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
     if (isSubmitting) return;
     setIsSubmitting(true);
-    
+
     if (!message || !channelId || !startTime || !serverId) {
         setIsSubmitting(false);
         return;
@@ -178,7 +162,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
     let recurrence: any;
     let status: 'active' | 'paused' = mode === 'edit' ? reminder!.status : 'active';
-    
+
     const parsedOffsets = offsets
       .split(',')
       .map(s => parseInt(s.trim(), 10))
@@ -204,7 +188,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
       message,
       channel: selectedChannel?.name || '',
       channelId: channelId,
-      startTime: new Date(startTime).toISOString(),
+      startTime: new Date(startTime).toISOString(), // ISO文字列で送信
       recurrence,
       status,
       selectedEmojis,
@@ -340,7 +324,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
           NOW!
         </Button>
       </Stack>
-      
+
       <TextField
         label="事前通知オフセット（分）"
         value={offsets}
@@ -393,10 +377,10 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
           variant={mode === 'edit' ? 'filled' : 'outlined'}
         />
       )}
-      
+
       {startTimeValue && (
         <Paper variant="outlined" sx={{ p: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          
+
           {(recurrenceType === 'none' || recurrenceType === 'daily') && (
             <Stack alignItems="center" spacing={1}>
               <Clock value={startTimeValue} size={isSmallScreen ? 120 : 150} renderNumbers />

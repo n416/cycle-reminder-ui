@@ -12,7 +12,6 @@ import { useParams } from 'react-router-dom';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
-// ★★★ ユーザー提供の新しいボスリストに更新 ★★★
 const bossOptions = [
   { group: '墓地', name: '2F） スケロ' },
   { group: '墓地', name: '3F） リセメン' },
@@ -23,7 +22,8 @@ const bossOptions = [
   { group: '黎明', name: '5F） アズラエル' },
 ];
 
-// ローカルタイムゾーンに変換して ISO 文字列 (YYYY-MM-DDTHH:mm) を返すヘルパー関数
+// ★★★★★ safeCreateDate関数を削除 ★★★★★
+
 const toLocalISOString = (date: Date): string => {
   const tzoffset = date.getTimezoneOffset() * 60000;
   const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
@@ -54,9 +54,11 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
   const [presetMessage, setPresetMessage] = useState<string>(isPreset ? reminder.message : bossOptions[0].name);
   const [manualMessage, setManualMessage] = useState<string>(isPreset ? '' : reminder.message);
   const [channelId, setChannelId] = useState(reminder.channelId);
-  const [startTime, setStartTime] = useState(toLocalISOString(new Date(reminder.startTime)));
+
+  // ★★★★★ startTimeの初期化をシンプルに修正 ★★★★★
+  const initialDate = reminder.startTime ? new Date(reminder.startTime) : null;
+  const [startTime, setStartTime] = useState(initialDate ? toLocalISOString(initialDate) : '');
   
-  // ★★★ オフセット用の state を追加 ★★★
   const [offsets, setOffsets] = useState(reminder.notificationOffsets?.join(', ') || '60, 10, 0');
 
   const recurrenceType: 'interval' = 'interval';
@@ -80,7 +82,6 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
         return;
     }
     
-    // ★★★ オフセット文字列をパース ★★★
     const parsedOffsets = offsets
       .split(',')
       .map(s => parseInt(s.trim(), 10))
@@ -96,7 +97,7 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
       channelId: channelId,
       startTime: new Date(startTime).toISOString(),
       recurrence,
-      notificationOffsets: parsedOffsets, // ★ パースしたオフセットを追加
+      notificationOffsets: parsedOffsets,
     };
 
     try {
@@ -133,7 +134,7 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
               >
                 {bossOptions.map((boss) => (
                   <MenuItem key={boss.name} value={boss.name}>
-                    {boss.group} {boss.name} {/* ★ ユーザー提供の表示形式に更新 */}
+                    {boss.group} {boss.name}
                   </MenuItem>
                 ))}
               </Select>
@@ -193,7 +194,6 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
             </Button>
           </Stack>
 
-          {/* ★★★★★ ここにオフセット入力欄を追加 ★★★★★ */}
           <TextField
             label="事前通知オフセット（分）"
             value={offsets}

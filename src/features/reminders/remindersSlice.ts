@@ -14,16 +14,13 @@ export interface Reminder {
   message: string;
   channel: string;
   channelId: string;
-  startTime: string;
+  startTime: string; // ★★★ anyからstringに修正 ★★★
   recurrence: RecurrenceRule;
   status: 'active' | 'paused';
   selectedEmojis?: string[];
   hideNextTime?: boolean;
-
-  // ★★★ ここから追加 ★★★
   notificationOffsets?: number[];
   nextOffsetIndex?: number;
-  // ★★★ ここまで追加 ★★★
 }
 interface RemindersState {
   reminders: Reminder[];
@@ -43,14 +40,10 @@ export const fetchReminders = createAsyncThunk('reminders/fetchReminders', async
 
 export const addNewReminder = createAsyncThunk('reminders/addNewReminder',
   async ({ serverId, newReminder }: { serverId: string; newReminder: Omit<Reminder, 'id' | 'serverId'> }, thunkAPI) => {
-    // Redux ストアの状態を取得
     const state = thunkAPI.getState() as RootState;
-    // 現在のサーバーに対応する書き込みトークンを取得
     const writeToken = state.auth.writeTokens[serverId];
-
-    // API リクエストを実行。headers に x-write-token を含める
     const response = await apiClient.post(`/reminders/${serverId}`, newReminder, {
-      headers: { 'x-write-token': writeToken } // <--- この headers を追加！
+      headers: { 'x-write-token': writeToken }
     });
     return response.data as Reminder;
   });
@@ -58,7 +51,6 @@ export const addNewReminder = createAsyncThunk('reminders/addNewReminder',
 export const updateExistingReminder = createAsyncThunk('reminders/updateExistingReminder', async (reminder: Reminder, thunkAPI) => {
   const state = thunkAPI.getState() as RootState;
   const writeToken = state.auth.writeTokens[reminder.serverId];
-
   const response = await apiClient.put(`/reminders/${reminder.id}`, reminder, {
     headers: { 'x-write-token': writeToken }
   });

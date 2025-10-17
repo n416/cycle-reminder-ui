@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
 import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder } from './remindersSlice.ts';
-import { selectAllServers, getServersStatus, getLastFetched, fetchServers, Server } from '@/features/servers/serversSlice'; // Server型をインポート
+import { selectAllServers, getServersStatus, getLastFetched, fetchServers, Server } from '@/features/servers/serversSlice';
 import { selectWriteTokenForServer, setWriteToken, selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import { MissedNotifications } from '../missed-notifications/MissedNotifications.tsx';
@@ -35,10 +35,6 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AddIcon from '@mui/icons-material/Add';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import SpeakerNotesIcon from '@mui/icons-material/SpeakerNotes';
-import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'; // 使われていないため削除しても良い
-import CodeIcon from '@mui/icons-material/Code';             // 使われていないため削除しても良い
-import WorkIcon from '@mui/icons-material/Work';             // 使われていないため削除しても良い
-import GroupIcon from '@mui/icons-material/Group';           // 使われていないため削除しても良い
 import TagIcon from '@mui/icons-material/Tag';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -53,8 +49,9 @@ import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import { EditReminderForm } from './EditReminderForm.tsx';
 import apiClient from '@/api/client';
 import { ServerSettingsModal } from '../servers/ServerSettingsModal';
-// ★★★ 新しいモーダルをインポート ★★★
 import { AddReminderTypeModal } from '../HitTheWorld/AddReminderTypeModal';
+
+// ★★★★★ 複雑なsafeCreateDate関数を削除 ★★★★★
 
 const getServerIconUrl = (server: Server): string | null => {
   if (server.customIcon) {
@@ -70,12 +67,13 @@ const dateTimeFormatOptions: Intl.DateTimeFormatOptions = {
   month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit'
 };
 
-const formatStartTime = (date: Date): string => {
+// ★★★★★ new Date()に直接文字列を渡すように修正 ★★★★★
+const formatStartTime = (startTimeValue: string): string => {
+  const date = new Date(startTimeValue);
   if (isNaN(date.getTime())) return "無効な日付";
   return new Intl.DateTimeFormat('ja-JP', dateTimeFormatOptions).format(date);
 };
 
-// ServerIcon コンポーネントはアイコンのフォールバック表示用
 const ServerIcon = ({ serverName }: { serverName: string }) => {
   if (!serverName) {
     return null;
@@ -87,14 +85,13 @@ const weekDayMap: { [key: string]: string } = {
   monday: '月', tuesday: '火', wednesday: '水', thursday: '木', friday: '金', saturday: '土', sunday: '日'
 };
 
-// ★★★★★ ここから修正 (formatRecurrenceDetails) ★★★★★
 const formatRecurrenceDetails = (reminder: Reminder): string => {
-  const date = new Date(reminder.startTime);
+  const date = new Date(reminder.startTime); // ★★★ 修正 ★★★
   if (isNaN(date.getTime())) return "日付設定エラー";
   const timeString = date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
   switch (reminder.recurrence.type) {
-    case 'daily': // ★ 'daily' ケースを追加
+    case 'daily':
       return `毎日${timeString}に通知`;
     case 'weekly':
       const days = reminder.recurrence.days.map(day => weekDayMap[day]).join(',');
@@ -106,24 +103,19 @@ const formatRecurrenceDetails = (reminder: Reminder): string => {
       return "繰り返しなし";
   }
 };
-// ★★★★★ ここまで修正 ★★★★★
 
-// ★★★★★ ここから修正 (calculateNextOccurrence) ★★★★★
 const calculateNextOccurrence = (reminder: Reminder): Date | null => {
   const now = new Date();
-  const startDate = new Date(reminder.startTime);
+  const startDate = new Date(reminder.startTime); // ★★★ 修正 ★★★
   if (isNaN(startDate.getTime())) return null;
 
   switch (reminder.recurrence.type) {
     case 'none':
       return startDate > now ? startDate : null;
 
-    case 'daily': { // ★ 'daily' ケースを追加
+    case 'daily': {
       let nextDate = now > startDate ? new Date(now) : new Date(startDate);
-      // 起点日の時刻をセット
       nextDate.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
-
-      // もし今日の予定時刻がすでに過ぎていたら、明日へ
       if (nextDate <= now) {
         nextDate.setDate(nextDate.getDate() + 1);
       }
@@ -159,9 +151,8 @@ const calculateNextOccurrence = (reminder: Reminder): Date | null => {
       return null;
     }
   }
-  return null; // ★ default case
+  return null;
 };
-// ★★★★★ ここまで修正 ★★★★★
 
 const formatNextOccurrence = (reminder: Reminder): string => {
   if (reminder.status === 'paused') {
@@ -191,13 +182,12 @@ export const ReminderList = () => {
   const currentServer = servers.find(s => s.id === serverId);
   const isDiscordAdmin = currentServer?.role === 'admin';
 
-  // ユーザーが 'tester' であるか、または 'owner' かつ 'admin' であるかを判定
   const needsAdminToken = (userRole === 'tester') || (isDiscordAdmin && userRole === 'owner');
   const canWrite = needsAdminToken || !!writeToken;
 
   const serverName = currentServer?.customName || currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
-  const isHitServer = currentServer?.serverType === 'hit_the_world'; // ★★★ サーバー種別をチェック ★★★
+  const isHitServer = currentServer?.serverType === 'hit_the_world';
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -208,10 +198,8 @@ export const ReminderList = () => {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const isMenuOpen = Boolean(menuAnchorEl);
 
-  // ★★★ 新しいモーダル用の state を追加 ★★★
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
 
   useEffect(() => {
     const CACHE_DURATION = 5 * 60 * 1000;
@@ -335,21 +323,16 @@ export const ReminderList = () => {
     }
   };
 
-  // ★★★ 「＋」ボタンが押されたときの処理 ★★★
   const handleAddClick = () => {
     if (isHitServer) {
-      // HITサーバーの場合は種別選択モーダルを開く
       setIsTypeModalOpen(true);
     } else {
-      // 通常サーバーの場合は直接追加フォームへ移動
       navigate(`/servers/${serverId}/add`);
     }
   };
 
-  // ★★★ 種別選択モーダルで「次へ」が押されたときの処理 ★★★
   const handleTypeSelected = (type: 'boss' | 'hydra' | 'normal') => {
     setIsTypeModalOpen(false);
-    // 選択された type に応じて異なるフォームへ遷移 (URLパラメータで渡す)
     navigate(`/servers/${serverId}/add?type=${type}`);
   };
 
@@ -362,8 +345,6 @@ export const ReminderList = () => {
   } else if (remindersStatus === 'succeeded') {
     if (reminders.length > 0) {
       content = reminders.map((reminder) => {
-        const startTime = new Date(reminder.startTime);
-        const isValidDate = !isNaN(startTime.getTime());
         const isEditing = editingId === reminder.id;
         const isPaused = reminder.status === 'paused';
 
@@ -394,7 +375,7 @@ export const ReminderList = () => {
                   <Divider />
                   <Stack spacing={1.5}>
                     <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><CalendarMonthIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{isValidDate ? formatStartTime(startTime) : "無効な日付"}</Typography></Stack>
+                    <Stack direction="row" alignItems="center" spacing={1.5}><CalendarMonthIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatStartTime(reminder.startTime)}</Typography></Stack>
                     <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
                   </Stack>
                   <Divider />
@@ -475,7 +456,6 @@ export const ReminderList = () => {
         )}
       </Menu>
 
-      {/* ★★★ 「＋」ボタンの onClick を変更 ★★★ */}
       {canWrite && (
         <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={handleAddClick}>
           <AddIcon />
@@ -509,10 +489,9 @@ export const ReminderList = () => {
       <ServerSettingsModal
         open={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        server={currentServer ?? null} // undefined の場合に null を渡す
+        server={currentServer ?? null}
       />
 
-      {/* ★★★ ここに新しい種別選択モーダルを追加 ★★★ */}
       <AddReminderTypeModal
         open={isTypeModalOpen}
         onClose={() => setIsTypeModalOpen(false)}
