@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
 import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder } from './remindersSlice.ts';
-import { selectAllServers, getServersStatus, getLastFetched, fetchServers } from '@/features/servers/serversSlice';
+import { selectAllServers, getServersStatus, getLastFetched, fetchServers, Server } from '@/features/servers/serversSlice'; // Server型をインポート
 import { selectWriteTokenForServer, setWriteToken, selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import { MissedNotifications } from '../missed-notifications/MissedNotifications.tsx';
@@ -35,10 +35,10 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AddIcon from '@mui/icons-material/Add';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import SpeakerNotesIcon from '@mui/icons-material/SpeakerNotes';
-import VideogameAssetIcon from '@mui/icons-material/VideogameAsset';
-import CodeIcon from '@mui/icons-material/Code';
-import WorkIcon from '@mui/icons-material/Work';
-import GroupIcon from '@mui/icons-material/Group';
+import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'; // 使われていないため削除しても良い
+import CodeIcon from '@mui/icons-material/Code';             // 使われていないため削除しても良い
+import WorkIcon from '@mui/icons-material/Work';             // 使われていないため削除しても良い
+import GroupIcon from '@mui/icons-material/Group';           // 使われていないため削除しても良い
 import TagIcon from '@mui/icons-material/Tag';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -48,13 +48,22 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SendIcon from '@mui/icons-material/Send';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import HistoryIcon from '@mui/icons-material/History';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import { EditReminderForm } from './EditReminderForm.tsx';
 import apiClient from '@/api/client';
+import { ServerSettingsModal } from '../servers/ServerSettingsModal';
+// ★★★ 新しいモーダルをインポート ★★★
+import { AddReminderTypeModal } from '../HitTheWorld/AddReminderTypeModal';
 
-const getServerIconUrl = (id: string, iconHash: string | null) => {
-  if (!iconHash) return null;
-  return `https://cdn.discordapp.com/icons/${id}/${iconHash}.png`;
+const getServerIconUrl = (server: Server): string | null => {
+  if (server.customIcon) {
+    return server.customIcon;
+  }
+  if (server.icon) {
+    return `https://cdn.discordapp.com/icons/${server.id}/${server.icon}.png`;
+  }
+  return null;
 };
 
 const dateTimeFormatOptions: Intl.DateTimeFormatOptions = {
@@ -66,18 +75,10 @@ const formatStartTime = (date: Date): string => {
   return new Intl.DateTimeFormat('ja-JP', dateTimeFormatOptions).format(date);
 };
 
-const ServerIcon = ({ iconName, serverName }: { iconName: string | null, serverName: string }) => {
+// ServerIcon コンポーネントはアイコンのフォールバック表示用
+const ServerIcon = ({ serverName }: { serverName: string }) => {
   if (!serverName) {
     return null;
-  }
-  if (iconName) {
-    switch (iconName) {
-      case 'game': return <VideogameAssetIcon />;
-      case 'code': return <CodeIcon />;
-      case 'work': return <WorkIcon />;
-      case 'group': return <GroupIcon />;
-      default: return <>{serverName.charAt(0)}</>;
-    }
   }
   return <>{serverName.charAt(0)}</>;
 };
@@ -86,12 +87,15 @@ const weekDayMap: { [key: string]: string } = {
   monday: '月', tuesday: '火', wednesday: '水', thursday: '木', friday: '金', saturday: '土', sunday: '日'
 };
 
+// ★★★★★ ここから修正 (formatRecurrenceDetails) ★★★★★
 const formatRecurrenceDetails = (reminder: Reminder): string => {
   const date = new Date(reminder.startTime);
   if (isNaN(date.getTime())) return "日付設定エラー";
   const timeString = date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
   switch (reminder.recurrence.type) {
+    case 'daily': // ★ 'daily' ケースを追加
+      return `毎日${timeString}に通知`;
     case 'weekly':
       const days = reminder.recurrence.days.map(day => weekDayMap[day]).join(',');
       return `毎週${days}曜日の${timeString}に通知`;
@@ -102,7 +106,9 @@ const formatRecurrenceDetails = (reminder: Reminder): string => {
       return "繰り返しなし";
   }
 };
+// ★★★★★ ここまで修正 ★★★★★
 
+// ★★★★★ ここから修正 (calculateNextOccurrence) ★★★★★
 const calculateNextOccurrence = (reminder: Reminder): Date | null => {
   const now = new Date();
   const startDate = new Date(reminder.startTime);
@@ -111,6 +117,18 @@ const calculateNextOccurrence = (reminder: Reminder): Date | null => {
   switch (reminder.recurrence.type) {
     case 'none':
       return startDate > now ? startDate : null;
+
+    case 'daily': { // ★ 'daily' ケースを追加
+      let nextDate = now > startDate ? new Date(now) : new Date(startDate);
+      // 起点日の時刻をセット
+      nextDate.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
+
+      // もし今日の予定時刻がすでに過ぎていたら、明日へ
+      if (nextDate <= now) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+      return nextDate;
+    }
 
     case 'interval':
       let nextIntervalDate = new Date(startDate);
@@ -125,29 +143,25 @@ const calculateNextOccurrence = (reminder: Reminder): Date | null => {
 
       if (targetDaysOfWeek.size === 0) return null;
 
-      let nextDate = new Date(now);
-      nextDate.setHours(startDate.getHours(), startDate.getMinutes(), startDate.getSeconds(), 0);
+      let nextDate = now > startDate ? new Date(now) : new Date(startDate);
+      nextDate.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
 
       if (nextDate <= now) {
-          nextDate.setDate(nextDate.getDate() + 1);
+        nextDate.setDate(nextDate.getDate() + 1);
       }
-      
+
       for (let i = 0; i < 7; i++) {
-          if (targetDaysOfWeek.has(nextDate.getDay())) {
-              let finalDate = new Date(nextDate);
-              finalDate.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
-              if(finalDate < startDate) {
-                  nextDate.setDate(nextDate.getDate() + 1);
-                  continue;
-              };
-              return finalDate;
-          }
-          nextDate.setDate(nextDate.getDate() + 1);
+        if (targetDaysOfWeek.has(nextDate.getDay())) {
+          return nextDate;
+        }
+        nextDate.setDate(nextDate.getDate() + 1);
       }
+      return null;
     }
   }
-  return null;
+  return null; // ★ default case
 };
+// ★★★★★ ここまで修正 ★★★★★
 
 const formatNextOccurrence = (reminder: Reminder): string => {
   if (reminder.status === 'paused') {
@@ -167,21 +181,23 @@ export const ReminderList = () => {
   const reminders = useAppSelector(selectAllReminders);
   const remindersStatus = useAppSelector(getRemindersStatus);
   const error = useAppSelector(state => state.reminders.error);
-  
+
   const servers = useAppSelector(selectAllServers);
   const serversStatus = useAppSelector(getServersStatus);
   const lastFetched = useAppSelector(getLastFetched);
   const writeToken = useAppSelector(selectWriteTokenForServer(serverId!));
   const userRole = useAppSelector(selectUserRole);
-  
+
   const currentServer = servers.find(s => s.id === serverId);
   const isDiscordAdmin = currentServer?.role === 'admin';
-  
-  const hasAdminRights = isDiscordAdmin && (userRole === 'owner' || userRole === 'tester');
-  const canWrite = hasAdminRights || !!writeToken;
 
-  const serverName = currentServer?.name || '';
-  const serverIconUrl = currentServer ? getServerIconUrl(currentServer.id, currentServer.icon) : null;
+  // ユーザーが 'tester' であるか、または 'owner' かつ 'admin' であるかを判定
+  const needsAdminToken = (userRole === 'tester') || (isDiscordAdmin && userRole === 'owner');
+  const canWrite = needsAdminToken || !!writeToken;
+
+  const serverName = currentServer?.customName || currentServer?.name || '';
+  const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
+  const isHitServer = currentServer?.serverType === 'hit_the_world'; // ★★★ サーバー種別をチェック ★★★
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -189,8 +205,13 @@ export const ReminderList = () => {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const [isUnlocking, setIsUnlocking] = useState(false); // ★★★ ロック解除処理中かどうかの状態を追加 ★★★
+  const [isUnlocking, setIsUnlocking] = useState(false);
   const isMenuOpen = Boolean(menuAnchorEl);
+
+  // ★★★ 新しいモーダル用の state を追加 ★★★
+  const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
 
   useEffect(() => {
     const CACHE_DURATION = 5 * 60 * 1000;
@@ -209,7 +230,7 @@ export const ReminderList = () => {
   }, [serverId, dispatch]);
 
   useEffect(() => {
-    if (currentServer && hasAdminRights && !writeToken) {
+    if (currentServer && needsAdminToken && !writeToken) {
       const getAdminToken = async () => {
         try {
           const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
@@ -221,7 +242,7 @@ export const ReminderList = () => {
       };
       getAdminToken();
     }
-  }, [currentServer, hasAdminRights, writeToken, serverId, dispatch]);
+  }, [currentServer, needsAdminToken, writeToken, serverId, dispatch]);
 
   useEffect(() => {
     if (remindersStatus === 'succeeded' && location.state?.linkedReminderId) {
@@ -244,7 +265,7 @@ export const ReminderList = () => {
       window.history.replaceState({ ...location.state, linkedReminderId: null }, document.title);
     }
   }, [remindersStatus, reminders, location.state, dispatch]);
-  
+
   const handleUnlock = async () => {
     if (!serverId) return;
     try {
@@ -259,20 +280,16 @@ export const ReminderList = () => {
     }
   };
 
-  // ★★★★★ ここからが修正箇所です ★★★★★
   const handleEnableEditing = async () => {
     if (!serverId) return;
-    setIsUnlocking(true); // 処理開始
+    setIsUnlocking(true);
     try {
-      // 1. まずサーバーにパスワードが設定されているか問い合わせる
       const statusRes = await apiClient.get(`/servers/${serverId}/password-status`);
       const { hasPassword } = statusRes.data;
 
       if (hasPassword) {
-        // 2. パスワードがあれば、従来通りモーダルを開く
         setPasswordModalOpen(true);
       } else {
-        // 3. パスワードがなければ、空のパスワードで直接トークンを要求する
         const tokenRes = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
         const { writeToken } = tokenRes.data;
         dispatch(setWriteToken({ serverId, token: writeToken }));
@@ -282,10 +299,9 @@ export const ReminderList = () => {
       console.error("Failed to enable editing:", error);
       dispatch(showToast({ message: '編集の有効化に失敗しました。', severity: 'error' }));
     } finally {
-      setIsUnlocking(false); // 処理終了
+      setIsUnlocking(false);
     }
   };
-  // ★★★★★ ここまで ★★★★★
 
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>, reminderId: string) => {
     setMenuAnchorEl(event.currentTarget);
@@ -302,12 +318,12 @@ export const ReminderList = () => {
       return;
     }
     try {
-      await apiClient.post(`/reminders/${reminder.serverId}/test-send`, 
-        { 
-          channelId: reminder.channelId, 
+      await apiClient.post(`/reminders/${reminder.serverId}/test-send`,
+        {
+          channelId: reminder.channelId,
           message: reminder.message,
           selectedEmojis: reminder.selectedEmojis,
-        }, 
+        },
         {
           headers: { 'x-write-token': writeToken }
         }
@@ -318,7 +334,26 @@ export const ReminderList = () => {
       dispatch(showToast({ message: 'テスト送信に失敗しました。', severity: 'error' }));
     }
   };
-  
+
+  // ★★★ 「＋」ボタンが押されたときの処理 ★★★
+  const handleAddClick = () => {
+    if (isHitServer) {
+      // HITサーバーの場合は種別選択モーダルを開く
+      setIsTypeModalOpen(true);
+    } else {
+      // 通常サーバーの場合は直接追加フォームへ移動
+      navigate(`/servers/${serverId}/add`);
+    }
+  };
+
+  // ★★★ 種別選択モーダルで「次へ」が押されたときの処理 ★★★
+  const handleTypeSelected = (type: 'boss' | 'hydra' | 'normal') => {
+    setIsTypeModalOpen(false);
+    // 選択された type に応じて異なるフォームへ遷移 (URLパラメータで渡す)
+    navigate(`/servers/${serverId}/add?type=${type}`);
+  };
+
+
   const selectedReminder = reminders.find(r => r.id === currentReminderId);
 
   let content;
@@ -358,9 +393,9 @@ export const ReminderList = () => {
                   </Box>
                   <Divider />
                   <Stack spacing={1.5}>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }}/><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><CalendarMonthIcon color="action" sx={{ fontSize: 20 }}/><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{isValidDate ? formatStartTime(startTime) : "無効な日付"}</Typography></Stack>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" sx={{ fontSize: 20 }}/><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
+                    <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
+                    <Stack direction="row" alignItems="center" spacing={1.5}><CalendarMonthIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{isValidDate ? formatStartTime(startTime) : "無効な日付"}</Typography></Stack>
+                    <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
                   </Stack>
                   <Divider />
                   <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
@@ -382,12 +417,17 @@ export const ReminderList = () => {
 
   return (
     <>
-      {hasAdminRights && serverId && <MissedNotifications serverId={serverId} />}
+      {needsAdminToken && serverId && <MissedNotifications serverId={serverId} />}
 
       <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Stack direction="row" spacing={2} alignItems="center">
-          <Avatar src={serverIconUrl || undefined}><ServerIcon iconName={null} serverName={serverName}/></Avatar>
+          <Avatar src={serverIconUrl || undefined}><ServerIcon serverName={serverName} /></Avatar>
           <Typography variant="h5">{serverName}</Typography>
+          {needsAdminToken && (
+            <IconButton onClick={() => setIsSettingsOpen(true)} size="small" aria-label="サーバー設定">
+              <SettingsIcon />
+            </IconButton>
+          )}
         </Stack>
         <Stack direction="row" spacing={1}>
           <Button component={Link} to={`/servers/${serverId}/log`} variant="outlined" startIcon={<HistoryIcon />}>
@@ -407,7 +447,7 @@ export const ReminderList = () => {
       </Stack>
 
       <Stack spacing={1.5}>{content}</Stack>
-      
+
       <Menu anchorEl={menuAnchorEl} open={isMenuOpen} onClose={handleMenuClose}>
         {selectedReminder && (
           <div>
@@ -415,19 +455,19 @@ export const ReminderList = () => {
               <ListItemIcon>{selectedReminder.status === 'paused' ? <PlayCircleOutlineIcon fontSize="small" /> : <PauseCircleOutlineIcon fontSize="small" />}</ListItemIcon>
               <ListItemText>{selectedReminder.status === 'paused' ? '再開する' : '休止する'}</ListItemText>
             </MenuItem>
-            
+
             <MenuItem disabled={!canWrite} onClick={() => { handleTestSend(selectedReminder); handleMenuClose(); }}>
               <ListItemIcon><SendIcon fontSize="small" /></ListItemIcon>
               <ListItemText>テスト送信</ListItemText>
             </MenuItem>
 
             <Divider />
-            <MenuItem disabled={!canWrite} sx={{ color: 'error.main' }} onClick={() => { 
-                if (serverId) {
-                  dispatch(deleteExistingReminder({ id: selectedReminder.id, serverId: serverId }));
-                }
-                handleMenuClose(); 
-              }}>
+            <MenuItem disabled={!canWrite} sx={{ color: 'error.main' }} onClick={() => {
+              if (serverId) {
+                dispatch(deleteExistingReminder({ id: selectedReminder.id, serverId: serverId }));
+              }
+              handleMenuClose();
+            }}>
               <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
               <ListItemText>削除</ListItemText>
             </MenuItem>
@@ -435,8 +475,9 @@ export const ReminderList = () => {
         )}
       </Menu>
 
-      {canWrite && userRole !== 'supporter' && (
-        <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={() => navigate(`/servers/${serverId}/add`)}>
+      {/* ★★★ 「＋」ボタンの onClick を変更 ★★★ */}
+      {canWrite && (
+        <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={handleAddClick}>
           <AddIcon />
         </Fab>
       )}
@@ -464,6 +505,19 @@ export const ReminderList = () => {
           <Button onClick={handleUnlock}>アンロック</Button>
         </DialogActions>
       </Dialog>
+
+      <ServerSettingsModal
+        open={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        server={currentServer ?? null} // undefined の場合に null を渡す
+      />
+
+      {/* ★★★ ここに新しい種別選択モーダルを追加 ★★★ */}
+      <AddReminderTypeModal
+        open={isTypeModalOpen}
+        onClose={() => setIsTypeModalOpen(false)}
+        onSelect={handleTypeSelected}
+      />
     </>
   );
 };

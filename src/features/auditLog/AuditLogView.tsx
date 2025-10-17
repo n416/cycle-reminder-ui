@@ -21,7 +21,7 @@ import { Link as RouterLink, useParams, useNavigate } from 'react-router-dom';
 
 const DiffViewer = ({ log }: { log: LogEntry }) => {
   const { before, after, action } = log;
-  
+
   if ((action === '作成' || action === '復元') && after) {
     return <Typography variant="caption" sx={{ color: 'success.light', display: 'block', whiteSpace: 'pre-wrap' }}>{JSON.stringify(after, null, 2)}</Typography>;
   }
@@ -29,7 +29,7 @@ const DiffViewer = ({ log }: { log: LogEntry }) => {
   if (action === '削除' && before) {
     return <Typography variant="caption" sx={{ color: 'error.light', display: 'block', whiteSpace: 'pre-wrap' }}>{JSON.stringify(before, null, 2)}</Typography>;
   }
-  
+
   if (before && after) {
     const allKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
     const changes = allKeys.filter(key => JSON.stringify((before as any)[key]) !== JSON.stringify((after as any)[key]));
@@ -64,16 +64,16 @@ export const AuditLogView = () => {
   const logs = useAppSelector(selectAllLogs);
   const logsStatus = useAppSelector(getLogsStatus);
   const error = useAppSelector(state => state.auditLog.error);
-  
+
   const servers = useAppSelector(selectAllServers);
   const writeToken = useAppSelector(selectWriteTokenForServer(serverId!));
   const userRole = useAppSelector(selectUserRole); // ★★★ アプリの役割を取得 ★★★
   const currentServer = servers.find(s => s.id === serverId);
-  
+
   // ★★★★★ ここからがセキュリティー修正箇所です ★★★★★
   const isDiscordAdmin = currentServer?.role === 'admin';
-  const hasAdminRights = isDiscordAdmin && (userRole === 'owner' || userRole === 'tester');
-  const canWrite = hasAdminRights || !!writeToken;
+  const needsAdminToken = (userRole === 'tester') || (isDiscordAdmin && userRole === 'owner');
+  const canWrite = needsAdminToken || !!writeToken;
   // ★★★★★ ここまで ★★★★★
 
   useEffect(() => {
@@ -89,23 +89,25 @@ export const AuditLogView = () => {
     dispatch(addNewReminder({
       serverId: serverId,
       newReminder: {
-        message: `[復元] ${dataToRestore.message}`,
+        message: dataToRestore.message, // ★ [復元] プレフィックスを削除
         channel: dataToRestore.channel,
         channelId: dataToRestore.channelId,
         startTime: dataToRestore.startTime,
         recurrence: dataToRestore.recurrence,
-        status: 'paused',
+        status: 'paused', // 休止状態で復元
         selectedEmojis: dataToRestore.selectedEmojis || [],
+        hideNextTime: dataToRestore.hideNextTime || false, // ★ hideNextTime も復元
       }
     })).unwrap()
-     .then(() => {
+      .then(() => {
         dispatch(showToast({ message: '休止状態でリマインダーを復元しました。', severity: 'info' }));
       })
-     .catch((err) => {
+      .catch((err) => {
         console.error("復元に失敗しました:", err);
         dispatch(showToast({ message: '復元に失敗しました。', severity: 'error' }));
       });
   };
+
 
   const getActionColor = (action: string): "success" | "info" | "error" | "default" | "warning" | "primary" | "secondary" => {
     if (action === '作成') return 'success';
@@ -182,7 +184,7 @@ export const AuditLogView = () => {
           リマインダー一覧へ戻る
         </Button>
       </Stack>
-      
+
       {content}
     </Box>
   );

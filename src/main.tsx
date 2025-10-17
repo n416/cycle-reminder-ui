@@ -5,7 +5,10 @@ import './index.css';
 import { Provider } from 'react-redux';
 import { store } from './app/store.ts';
 import { BrowserRouter } from 'react-router-dom';
-import { ThemeRegistry } from './components/ThemeRegistry.tsx'; // 1. ThemeRegistryをインポート
+import { ThemeRegistry } from './components/ThemeRegistry.tsx';
+import { setupErrorInterceptors } from './api/client.ts'; // ★ インポート
+
+setupErrorInterceptors(store);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

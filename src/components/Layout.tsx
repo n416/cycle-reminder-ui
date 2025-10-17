@@ -131,7 +131,7 @@ export const Layout = () => {
 
   return (
     <>
-      <Box sx={{ display: 'flex' }}>
+      <Box sx={{ display: 'flex', minHeight: '100vh'}}>
         <AppBar position="fixed">
           <Toolbar>
             <IconButton component={Link} to="/" color="inherit">

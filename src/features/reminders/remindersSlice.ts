@@ -5,7 +5,8 @@ import apiClient from '@/api/client';
 type RecurrenceRule =
   | { type: 'none' }
   | { type: 'weekly'; days: string[] }
-  | { type: 'interval'; hours: number };
+  | { type: 'interval'; hours: number }
+  | { type: 'daily' };
 
 export interface Reminder {
   id: string;
@@ -35,27 +36,31 @@ export const fetchReminders = createAsyncThunk('reminders/fetchReminders', async
   return response.data as Reminder[];
 });
 
-export const addNewReminder = createAsyncThunk('reminders/addNewReminder', 
+export const addNewReminder = createAsyncThunk('reminders/addNewReminder',
   async ({ serverId, newReminder }: { serverId: string; newReminder: Omit<Reminder, 'id' | 'serverId'> }, thunkAPI) => {
+    // Redux ストアの状態を取得
     const state = thunkAPI.getState() as RootState;
+    // 現在のサーバーに対応する書き込みトークンを取得
     const writeToken = state.auth.writeTokens[serverId];
+
+    // API リクエストを実行。headers に x-write-token を含める
     const response = await apiClient.post(`/reminders/${serverId}`, newReminder, {
-      headers: { 'x-write-token': writeToken }
+      headers: { 'x-write-token': writeToken } // <--- この headers を追加！
     });
     return response.data as Reminder;
-});
+  });
 
 export const updateExistingReminder = createAsyncThunk('reminders/updateExistingReminder', async (reminder: Reminder, thunkAPI) => {
   const state = thunkAPI.getState() as RootState;
   const writeToken = state.auth.writeTokens[reminder.serverId];
-  
+
   const response = await apiClient.put(`/reminders/${reminder.id}`, reminder, {
     headers: { 'x-write-token': writeToken }
   });
   return response.data as Reminder;
 });
 
-export const deleteExistingReminder = createAsyncThunk('reminders/deleteExistingReminder', 
+export const deleteExistingReminder = createAsyncThunk('reminders/deleteExistingReminder',
   async ({ id, serverId }: { id: string, serverId: string }, thunkAPI) => {
     const state = thunkAPI.getState() as RootState;
     const writeToken = state.auth.writeTokens[serverId];
@@ -63,7 +68,7 @@ export const deleteExistingReminder = createAsyncThunk('reminders/deleteExisting
       headers: { 'x-write-token': writeToken }
     });
     return id;
-});
+  });
 
 export const toggleStatusAsync = createAsyncThunk('reminders/toggleStatusAsync', async (reminder: Reminder, thunkAPI) => {
   const state = thunkAPI.getState() as RootState;

@@ -14,12 +14,6 @@ import {
   Checkbox,
   Chip,
   Stack,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  TextField,
-  DialogActions,
   Button,
   CircularProgress,
 } from '@mui/material';
@@ -27,17 +21,26 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddLinkIcon from '@mui/icons-material/AddLink';
 import useLocalStorage from '@/hooks/useLocalStorage';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/app/hooks';
-import { fetchServers, selectAllServers, getServersStatus, getLastFetched, Server, updateServerPassword } from './serversSlice';
+import { fetchServers, selectAllServers, getServersStatus, getLastFetched, Server } from './serversSlice'; // Server型をインポート
 import { selectUserRole } from '@/features/auth/authSlice';
-import { showToast } from '@/features/toast/toastSlice';
+import { ServerSettingsModal } from './ServerSettingsModal'; // ★★★ 新しいモーダルをインポート ★★★
 
 const OAUTH_URL = `https://discord.com/api/oauth2/authorize?client_id=${import.meta.env.VITE_DISCORD_CLIENT_ID}&permissions=268435456&scope=bot%20applications.commands`;
 
-const getServerIconUrl = (id: string, iconHash: string | null) => {
-  if (!iconHash) return null;
-  return `https://cdn.discordapp.com/icons/${id}/${iconHash}.png`;
+// ★★★ サーバーアイコンの表示ロジックを更新 ★★★
+const getServerIconUrl = (server: Server): string | null => {
+  // カスタムアイコンが設定されていればそれを優先
+  if (server.customIcon) {
+    return server.customIcon;
+  }
+  // Discordのアイコンがあればそれを表示
+  if (server.icon) {
+    return `https://cdn.discordapp.com/icons/${server.id}/${server.icon}.png`;
+  }
+  // どちらもなければ null
+  return null;
 };
 
 interface ServerListSectionProps {
@@ -48,9 +51,8 @@ interface ServerListSectionProps {
 }
 
 const ServerListSection = ({ title, servers, onSettingsClick, userRole }: ServerListSectionProps) => {
-    
+
     const handleAddBotClick = (server: Server) => {
-        // この関数はオーナー/テスターからしか呼ばれなくなった
         window.open(`${OAUTH_URL}&guild_id=${server.id}`, '_blank', 'noopener,noreferrer');
     };
 
@@ -65,14 +67,17 @@ const ServerListSection = ({ title, servers, onSettingsClick, userRole }: Server
               <React.Fragment key={server.id}>
                 <ListItem disablePadding>
                   <Box sx={{ width: '100%', p: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'center' }}>
-                    
+
                     <ListItemButton component={Link} to={`/servers/${server.id}`} sx={{ flexGrow: 1, p: 1, borderRadius: 1 }}>
                       <ListItemAvatar>
-                        <Avatar src={getServerIconUrl(server.id, server.icon) || undefined}>
-                          {server.name.charAt(0)}
+                        {/* ★★★ 表示ロジックを更新 ★★★ */}
+                        <Avatar src={getServerIconUrl(server) || undefined}>
+                          {/* カスタム名があればそれを、なければDiscordの名前の頭文字を表示 */}
+                          {(server.customName || server.name).charAt(0)}
                         </Avatar>
                       </ListItemAvatar>
-                      <ListItemText primary={server.name} />
+                      {/* ★★★ 表示ロジックを更新 ★★★ */}
+                      <ListItemText primary={server.customName || server.name} />
                     </ListItemButton>
 
                     <Stack direction="row" spacing={1} alignItems="center" sx={{ pt: { xs: 1, sm: 0 }, pl: { xs: 0, sm: 2 } }}>
@@ -81,13 +86,14 @@ const ServerListSection = ({ title, servers, onSettingsClick, userRole }: Server
                         color={server.isAdded ? "success" : "default"}
                         size="small"
                       />
+                      {/* ★★★ 設定ボタンの表示条件（管理者のみ）は変更なし ★★★ */}
                       {server.role === 'admin' && server.isAdded && (userRole === 'owner' || userRole === 'tester') && (
                         <IconButton edge="end" aria-label="settings" onClick={() => onSettingsClick(server)}>
                           <SettingsIcon />
                         </IconButton>
                       )}
 
-                      {/* ★★★★★ ここからがセキュリティー修正箇所です ★★★★★ */}
+                      {/* Bot導入ボタンのロジックは変更なし */}
                       {server.role === 'admin' && !server.isAdded && (userRole === 'owner' || userRole === 'tester') && (
                         <Button
                           variant="outlined"
@@ -98,8 +104,6 @@ const ServerListSection = ({ title, servers, onSettingsClick, userRole }: Server
                           導入
                         </Button>
                       )}
-                      {/* ★★★★★ ここまで ★★★★★ */}
-
                     </Stack>
                   </Box>
                 </ListItem>
@@ -122,11 +126,11 @@ export const ServerList = () => {
   const lastFetched = useAppSelector(getLastFetched);
   const error = useAppSelector(state => state.servers.error);
   const userRole = useAppSelector(selectUserRole);
-  
+
   const [showOnlyAdded, setShowOnlyAdded] = useLocalStorage('showOnlyAddedServers', false);
-  const [configuringServer, setConfiguringServer] = useState<Server | null>(null);
-  
-  const [newPassword, setNewPassword] = useState('');
+
+  // ★★★ 古いパスワードモーダル用の state を、新しい設定モーダル用に変更 ★★★
+  const [settingsServer, setSettingsServer] = useState<Server | null>(null);
 
   useEffect(() => {
     if (userRole === 'supporter') {
@@ -143,7 +147,7 @@ export const ServerList = () => {
       }
     }
   }, [dispatch, lastFetched, serversStatus]);
-  
+
   const handleRefresh = () => {
     dispatch(fetchServers());
   };
@@ -151,28 +155,14 @@ export const ServerList = () => {
   const filteredByAdded = showOnlyAdded
     ? servers.filter(server => server.isAdded)
     : servers;
-  
+
   const adminServers = filteredByAdded.filter(server => server.role === 'admin');
   const memberServers = filteredByAdded.filter(server => server.role === 'member');
 
-  const handleOpenSettings = (server: Server) => setConfiguringServer(server);
-  const handleCloseSettings = () => {
-    setConfiguringServer(null);
-    setNewPassword('');
-  };
+  // ★★★ モーダルを開閉するハンドラ ★★★
+  const handleOpenSettings = (server: Server) => setSettingsServer(server);
+  const handleCloseSettings = () => setSettingsServer(null);
 
-  const handleSavePassword = async () => {
-    if (!configuringServer) return;
-    try {
-      await dispatch(updateServerPassword({ serverId: configuringServer.id, password: newPassword })).unwrap();
-      dispatch(showToast({ message: 'パスワードを更新しました。', severity: 'success' }));
-    } catch (err) {
-      dispatch(showToast({ message: 'パスワードの更新に失敗しました。', severity: 'error' }));
-    } finally {
-      handleCloseSettings();
-    }
-  };
-  
   let content;
   if (serversStatus === 'loading' && servers.length === 0) {
     content = <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
@@ -188,6 +178,7 @@ export const ServerList = () => {
   } else if (serversStatus === 'succeeded' && servers.length === 0) {
     content = <Typography sx={{ mt: 4, textAlign: 'center' }}>参加しているDiscordサーバーが見つかりませんでした。</Typography>;
   } else {
+    // データ取得前 or 失敗したがキャッシュはある場合など
     content = <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
   }
 
@@ -206,39 +197,20 @@ export const ServerList = () => {
       </Typography>
 
       <Box sx={{ mb: 2 }}>
-        <FormControlLabel 
-          control={<Checkbox checked={showOnlyAdded} onChange={(e) => setShowOnlyAdded(e.target.checked)} />} 
-          label="導入済みのサーバーのみ表示" 
+        <FormControlLabel
+          control={<Checkbox checked={showOnlyAdded} onChange={(e) => setShowOnlyAdded(e.target.checked)} />}
+          label="導入済みのサーバーのみ表示"
         />
       </Box>
-      
+
       {content}
 
-      <Dialog open={!!configuringServer} onClose={handleCloseSettings}>
-        <DialogTitle>
-          「{configuringServer?.name}」のパスワード設定
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            このサーバーのリマインダー設定を保護するためのパスワードを入力してください。空欄で保存するとパスワードが削除されます。
-          </DialogContentText>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="新しいパスワード"
-            type="password"
-            fullWidth
-            variant="standard"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSavePassword()}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseSettings}>キャンセル</Button>
-          <Button onClick={handleSavePassword} variant="contained">保存</Button>
-        </DialogActions>
-      </Dialog>
+      {/* ★★★ 古いパスワードモーダルを削除し、新しい設定モーダルに差し替え ★★★ */}
+      <ServerSettingsModal
+        open={!!settingsServer}
+        onClose={handleCloseSettings}
+        server={settingsServer}
+      />
     </Box>
   );
 };
