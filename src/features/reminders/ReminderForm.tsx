@@ -74,10 +74,10 @@ interface ReminderFormProps {
 export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSave }) => {
   const { serverId: serverIdFromParams } = useParams<{ serverId: string }>();
   const serverId = mode === 'add' ? serverIdFromParams : reminder?.serverId;
-  
+
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  
+
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -97,12 +97,14 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
   const [channelId, setChannelId] = useState(reminder?.channelId || '');
   const [startTime, setStartTime] = useState(reminder ? toLocalISOString(new Date(reminder.startTime)) : '');
   const [startTimeValue, setStartTimeValue] = useState<Date | null>(reminder ? new Date(reminder.startTime) : null);
-  
+
   const [recurrenceType, setRecurrenceType] = useState(reminder?.recurrence.type || 'none');
   const [weeklyDays, setWeeklyDays] = useState(reminder?.recurrence.type === 'weekly' ? reminder.recurrence.days : []);
   const [intervalHours, setIntervalHours] = useState(reminder?.recurrence.type === 'interval' ? reminder.recurrence.hours : 1);
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>(reminder?.selectedEmojis || []);
-  
+
+  const [hideNextTime, setHideNextTime] = useState(reminder?.hideNextTime ?? false);
+
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
 
@@ -116,7 +118,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
       }
     }
   }, [channels, reminder, channelId, mode]);
-  
+
   useEffect(() => {
     try {
       const date = new Date(startTime);
@@ -157,13 +159,14 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
     const selectedChannel = channels?.find(ch => ch.id === channelId);
     const reminderData = {
-        message,
-        channel: selectedChannel?.name || '',
-        channelId: channelId,
-        startTime: new Date(startTime).toISOString(),
-        recurrence,
-        status,
-        selectedEmojis,
+      message,
+      channel: selectedChannel?.name || '',
+      channelId: channelId,
+      startTime: new Date(startTime).toISOString(),
+      recurrence,
+      status,
+      selectedEmojis,
+      hideNextTime,
     };
 
     try {
@@ -182,7 +185,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
       dispatch(showToast({ message: `リマインダーの${action}に失敗しました。`, severity: 'error' }));
     }
   };
-  
+
   const tileClassName = ({ date, view }: { date: Date, view: string }) => {
     if (view === 'month') {
       const dayName = weekDays[date.getDay()];
@@ -192,7 +195,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
     }
     return null;
   };
-  
+
   const handleCalendarClick = (clickedDate: Date) => {
     const dayName = weekDays[clickedDate.getDay()];
     setWeeklyDays((currentDays) => {
@@ -203,12 +206,12 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
       }
     });
   };
-  
+
   const renderIntervalClocks = () => {
     if (!startTimeValue) return null;
     const now = new Date();
     const clocks = [];
-    
+
     let nextStartTime = new Date(startTimeValue);
     while (nextStartTime <= now) {
       nextStartTime.setHours(nextStartTime.getHours() + intervalHours);
@@ -234,17 +237,27 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
   const formContent = (
     <Stack spacing={3}>
-      <TextField 
-        label="メッセージ" 
-        value={message} 
-        onChange={(e) => setMessage(e.target.value)} 
-        required 
-        fullWidth 
-        multiline 
+      <TextField
+        label="メッセージ"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        required
+        fullWidth
+        multiline
         rows={4}
         variant={mode === 'edit' ? 'filled' : 'outlined'}
       />
-      
+
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={hideNextTime}
+            onChange={(e) => setHideNextTime(e.target.checked)}
+          />
+        }
+        label="次のリマインド日時を出さない"
+      />
+
       <Stack direction="row" spacing={1} alignItems="center">
         <FormControl fullWidth variant={mode === 'edit' ? 'filled' : 'outlined'}>
           <InputLabel id="channel-select-label">チャンネル</InputLabel>
@@ -282,7 +295,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
           NOW!
         </Button>
       </Stack>
-      
+
       <FormControl component="fieldset">
         <FormLabel component="legend">サイクル</FormLabel>
         <RadioGroup row value={recurrenceType} onChange={(e) => setRecurrenceType(e.target.value as any)}>
@@ -325,7 +338,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
           variant={mode === 'edit' ? 'filled' : 'outlined'}
         />
       )}
-      
+
       {startTimeValue && (
         <Paper variant="outlined" sx={{ p: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
           {recurrenceType === 'none' && (
@@ -354,14 +367,14 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
       <Box>
         <FormLabel component="legend">スタンプ設定 (任意)</FormLabel>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-          <Paper 
-            variant="outlined" 
-            sx={{ 
+          <Paper
+            variant="outlined"
+            sx={{
               flexGrow: 1,
-              p: 1, 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              gap: 0.5, 
+              p: 1,
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 0.5,
               alignItems: 'center',
               minHeight: '56px',
               backgroundColor: mode === 'edit' ? 'action.hover' : 'transparent',
@@ -409,10 +422,10 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
                 {activeTab === 0 && emojis.filter(e => 'url' in e).map(emoji => (
                   <Tooltip title={emoji.name || ''} key={emoji.id}>
-                    <IconButton 
+                    <IconButton
                       onClick={() => handleEmojiToggle(emoji.id)}
-                      sx={{ 
-                        borderRadius: 1, 
+                      sx={{
+                        borderRadius: 1,
                         border: selectedEmojis.includes(emoji.id) ? `2px solid ${theme.palette.primary.main}` : '2px solid transparent'
                       }}
                     >
@@ -420,14 +433,14 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
                     </IconButton>
                   </Tooltip>
                 ))}
-                {activeTab === 0 && emojis.filter(e => 'url' in e).length === 0 && <Typography sx={{p: 2}}>カスタム絵文字はありません</Typography>}
-                
+                {activeTab === 0 && emojis.filter(e => 'url' in e).length === 0 && <Typography sx={{ p: 2 }}>カスタム絵文字はありません</Typography>}
+
                 {activeTab === 1 && emojis.filter(e => !('url' in e)).map(emoji => (
                   <Tooltip title={emoji.name || ''} key={emoji.id}>
-                    <IconButton 
+                    <IconButton
                       onClick={() => handleEmojiToggle(emoji.id)}
-                      sx={{ 
-                        fontSize: '1.5rem', 
+                      sx={{
+                        fontSize: '1.5rem',
                         borderRadius: 1,
                         width: '48px',
                         height: '48px',
@@ -451,7 +464,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
         </DialogActions>
       </Dialog>
 
-      { mode === 'add' ? (
+      {mode === 'add' ? (
         <>
           <Divider sx={{ pt: 2 }} />
           <Stack direction="row" spacing={2} justifyContent="flex-end">
