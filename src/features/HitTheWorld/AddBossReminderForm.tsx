@@ -14,13 +14,13 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 
 // ボス名のリスト（定型）
 const bossOptions = [
-  { group: '墓地', name: '2F ) スケロ' },
-  { group: '墓地', name: '3F ) リセメン' },
-  { group: '墓地', name: '4F ) ユリア' },
-  { group: '啓示', name: '3F ) グレゴ' },
-  { group: '啓示', name: '5F ) ケンタ' },
-  { group: '黎明', name: '2F ) アルサ' },
-  { group: '黎明', name: '5F ) アズラエル' },
+  { group: '墓地', name: '2F） スケロ' },
+  { group: '墓地', name: '3F） リセメン' },
+  { group: '墓地', name: '4F） ユリア' },
+  { group: '啓示', name: '3F） グレゴ' },
+  { group: '啓示', name: '5F） ケンタ' },
+  { group: '黎明', name: '2F） アルサ' },
+  { group: '黎明', name: '5F） アズラエル' },
 ];
 
 // ローカルタイムゾーンに変換して ISO 文字列 (YYYY-MM-DDTHH:mm) を返すヘルパー関数
