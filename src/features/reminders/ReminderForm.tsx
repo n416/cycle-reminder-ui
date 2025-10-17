@@ -48,6 +48,24 @@ import 'react-clock/dist/Clock.css';
 import './Calendar.css';
 import './Clock.css';
 
+// ★★★★★ ここからが修正箇所です ★★★★★
+const safeCreateDate = (dateSource: any): Date | null => {
+  if (!dateSource) return null;
+  if (dateSource instanceof Date) {
+    return dateSource;
+  }
+  if (typeof dateSource === 'string') {
+    const d = new Date(dateSource);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (typeof dateSource === 'object' && dateSource.seconds !== undefined) {
+    const d = new Date(dateSource.seconds * 1000);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+// ★★★★★ ここまで ★★★★★
+
 const toLocalISOString = (date: Date) => {
   const tzoffset = date.getTimezoneOffset() * 60000;
   const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
@@ -97,8 +115,12 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
   const [message, setMessage] = useState(reminder?.message || '');
   const [channelId, setChannelId] = useState(reminder?.channelId || '');
-  const [startTime, setStartTime] = useState(reminder ? toLocalISOString(new Date(reminder.startTime)) : '');
-  const [startTimeValue, setStartTimeValue] = useState<Date | null>(reminder ? new Date(reminder.startTime) : null);
+  
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const safeDate = reminder ? safeCreateDate(reminder.startTime) : null;
+  const [startTime, setStartTime] = useState(safeDate ? toLocalISOString(safeDate) : '');
+  const [startTimeValue, setStartTimeValue] = useState<Date | null>(safeDate);
+  // ★★★★★ ここまで ★★★★★
   
   const [offsets, setOffsets] = useState(reminder?.notificationOffsets?.join(', ') || '0');
 
