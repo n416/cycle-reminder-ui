@@ -77,6 +77,25 @@ export const toggleStatusAsync = createAsyncThunk('reminders/toggleStatusAsync',
   return response.data as Reminder;
 });
 
+export const addDailySummaryReminder = createAsyncThunk(
+  'reminders/addDailySummary',
+  async ({ serverId, channelId, time }: { serverId: string; channelId: string; time: string }, thunkAPI) => {
+    const state = thunkAPI.getState() as RootState;
+    const writeToken = state.auth.writeTokens[serverId];
+    // 書き込みトークンがない場合はUI側で制御されるが、念のためチェック
+    if (!writeToken) {
+      return thunkAPI.rejectWithValue('No write token available');
+    }
+    const response = await apiClient.post(`/reminders/${serverId}/daily-summary`,
+      { channelId, time },
+      {
+        headers: { 'x-write-token': writeToken }
+      }
+    );
+    return response.data as Reminder;
+  }
+);
+
 export const remindersSlice = createSlice({
   name: 'reminders',
   initialState,
@@ -96,6 +115,10 @@ export const remindersSlice = createSlice({
         state.error = action.error.message || null;
       })
       .addCase(addNewReminder.fulfilled, (state, action: PayloadAction<Reminder>) => {
+        state.reminders.push(action.payload);
+      })
+      .addCase(addDailySummaryReminder.fulfilled, (state, action: PayloadAction<Reminder>) => {
+        // 通常のリマインダー追加と同様に、stateに結果を追加する
         state.reminders.push(action.payload);
       })
       .addCase(deleteExistingReminder.fulfilled, (state, action: PayloadAction<string>) => {

@@ -42,6 +42,7 @@ import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SendIcon from '@mui/icons-material/Send';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -50,6 +51,8 @@ import { EditReminderForm } from './EditReminderForm.tsx';
 import apiClient from '@/api/client';
 import { ServerSettingsModal } from '../servers/ServerSettingsModal';
 import { AddReminderTypeModal } from '../HitTheWorld/AddReminderTypeModal';
+import { AddDailySummaryCard } from './AddDailySummaryCard';
+import { DailySummaryDialog } from './DailySummaryDialog';
 
 // ★★★★★ 複雑なsafeCreateDate関数を削除 ★★★★★
 
@@ -189,6 +192,9 @@ export const ReminderList = () => {
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
   const isHitServer = currentServer?.serverType === 'hit_the_world';
 
+  // 「今日の予定」リマインダーが既に存在するかをチェック
+  const hasDailySummaryReminder = reminders.some(r => r.message.includes('{{all}}'));
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [currentReminderId, setCurrentReminderId] = useState<null | string>(null);
@@ -200,6 +206,8 @@ export const ReminderList = () => {
 
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const [isSummaryDialogOpen, setSummaryDialogOpen] = useState(false);
 
   useEffect(() => {
     const CACHE_DURATION = 5 * 60 * 1000;
@@ -352,7 +360,11 @@ export const ReminderList = () => {
           <Accordion key={reminder.id} id={`reminder-${reminder.id}`} TransitionProps={{ unmountOnExit: true }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
-                <SpeakerNotesIcon color="action" />
+                {reminder.message.includes('{{all}}') ? (
+                  <FormatListBulletedIcon color="primary" />
+                ) : (
+                  <SpeakerNotesIcon color="action" />
+                )}
                 <Typography noWrap sx={{ flexGrow: 1, textDecoration: isPaused ? 'line-through' : 'none', color: isPaused ? 'text.disabled' : 'text.primary' }}>
                   {reminder.message.split('\n')[0]}
                 </Typography>
@@ -429,6 +441,11 @@ export const ReminderList = () => {
 
       <Stack spacing={1.5}>{content}</Stack>
 
+      {/* 書き込み権限があり、かつ「今日の予定」リマインダーがまだ無い場合のみカードを表示 */}
+      {canWrite && !hasDailySummaryReminder && (
+        <AddDailySummaryCard onClick={() => setSummaryDialogOpen(true)} />
+      )}
+
       <Menu anchorEl={menuAnchorEl} open={isMenuOpen} onClose={handleMenuClose}>
         {selectedReminder && (
           <div>
@@ -497,6 +514,14 @@ export const ReminderList = () => {
         onClose={() => setIsTypeModalOpen(false)}
         onSelect={handleTypeSelected}
       />
+      {/* serverIdがある場合のみダイアログをレンダリング */}
+      {serverId && (
+        <DailySummaryDialog
+          isOpen={isSummaryDialogOpen}
+          onClose={() => setSummaryDialogOpen(false)}
+          serverId={serverId}
+        />
+      )}
     </>
   );
 };
