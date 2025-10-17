@@ -4,9 +4,9 @@ import apiClient from '@/api/client';
 
 type RecurrenceRule =
   | { type: 'none' }
+  | { type: 'daily' }
   | { type: 'weekly'; days: string[] }
-  | { type: 'interval'; hours: number }
-  | { type: 'daily' };
+  | { type: 'interval'; hours: number };
 
 export interface Reminder {
   id: string;
@@ -19,6 +19,11 @@ export interface Reminder {
   status: 'active' | 'paused';
   selectedEmojis?: string[];
   hideNextTime?: boolean;
+
+  // ★★★ ここから追加 ★★★
+  notificationOffsets?: number[];
+  nextOffsetIndex?: number;
+  // ★★★ ここまで追加 ★★★
 }
 interface RemindersState {
   reminders: Reminder[];

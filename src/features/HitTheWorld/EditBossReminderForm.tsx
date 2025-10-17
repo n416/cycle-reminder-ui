@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import { updateExistingReminder, Reminder } from '../reminders/remindersSlice'; // updateExistingReminder をインポート
+import { updateExistingReminder, Reminder } from '../reminders/remindersSlice';
 import { fetchChannels, selectChannelsForServer, getChannelsStatus } from '../channels/channelsSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import {
@@ -12,7 +12,7 @@ import { useParams } from 'react-router-dom';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
-// ボス名のリスト（定型）
+// ★★★ ユーザー提供の新しいボスリストに更新 ★★★
 const bossOptions = [
   { group: '墓地', name: '2F） スケロ' },
   { group: '墓地', name: '3F） リセメン' },
@@ -30,103 +30,90 @@ const toLocalISOString = (date: Date): string => {
   return localISOTime;
 };
 
-// --- Props の型定義を追加 ---
 interface EditBossReminderFormProps {
   reminder: Reminder;
-  onCancel: () => void; // キャンセル時に呼ばれる関数
+  onCancel: () => void;
 }
 
 export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ reminder, onCancel }) => {
-  const { serverId } = useParams<{ serverId: string }>(); // serverId は reminder から取得できるが、念のため useParams も使う
+  const { serverId } = useParams<{ serverId: string }>();
   const dispatch = useAppDispatch();
 
-  // Redux ストアからチャンネル情報を取得
-  const channels = useAppSelector(selectChannelsForServer(reminder.serverId)); // reminder.serverId を使用
+  const channels = useAppSelector(selectChannelsForServer(reminder.serverId));
   const channelsStatus = useAppSelector(getChannelsStatus);
-
-  // ★★★ isSubmitting 状態を追加 ★★★
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // コンポーネントがマウントされたとき、チャンネル情報がなければ取得する
   useEffect(() => {
     if (reminder.serverId && !channels) {
       dispatch(fetchChannels({ serverId: reminder.serverId }));
     }
   }, [reminder.serverId, channels, dispatch]);
 
-  // --- フォームの状態管理 ---
-  // ボス名が定型リストに含まれるか判定し、初期値を設定
   const isPreset = bossOptions.some(boss => boss.name === reminder.message);
   const [messageType, setMessageType] = useState<'preset' | 'manual'>(isPreset ? 'preset' : 'manual');
   const [presetMessage, setPresetMessage] = useState<string>(isPreset ? reminder.message : bossOptions[0].name);
   const [manualMessage, setManualMessage] = useState<string>(isPreset ? '' : reminder.message);
-  // 他のフィールドも reminder の値で初期化
   const [channelId, setChannelId] = useState(reminder.channelId);
   const [startTime, setStartTime] = useState(toLocalISOString(new Date(reminder.startTime)));
+  
+  // ★★★ オフセット用の state を追加 ★★★
+  const [offsets, setOffsets] = useState(reminder.notificationOffsets?.join(', ') || '60, 10, 0');
 
-  // ボス用フォームではサイクル関連は固定値 (編集不可)
   const recurrenceType: 'interval' = 'interval';
-  const intervalHours = 20; // 既存のリマインダーが異なる値を持っていても、ここでは20固定とする
+  const intervalHours = 20;
 
-  // チャンネルリストが読み込まれても、既存の channelId を維持する (新規追加時とは異なる)
-  // もし既存の channelId がリストにない場合でも、そのまま保持しておく (削除されたチャンネルの可能性)
-
-  // 「NOW!」ボタンが押されたときの処理
   const handleSetNow = () => {
     const now = new Date();
     now.setSeconds(0, 0);
     setStartTime(toLocalISOString(now));
   };
 
-  // --- フォーム送信時の処理 (updateExistingReminder を使用) ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // ★★★ 連打防止 ★★★
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     const finalMessage = messageType === 'preset' ? presetMessage : manualMessage;
-    if (!finalMessage || !channelId || !startTime || !reminder.serverId) { // serverId は reminder から取得
+    if (!finalMessage || !channelId || !startTime || !reminder.serverId) {
         dispatch(showToast({ message: 'すべての項目を入力してください。', severity: 'warning' }));
-        setIsSubmitting(false); // ★ 失敗時も解除
+        setIsSubmitting(false);
         return;
     }
+    
+    // ★★★ オフセット文字列をパース ★★★
+    const parsedOffsets = offsets
+      .split(',')
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n >= 0);
 
-    const recurrence = { type: recurrenceType, hours: intervalHours }; // 固定値を使用
+    const recurrence = { type: recurrenceType, hours: intervalHours };
     const selectedChannel = channels?.find(ch => ch.id === channelId);
 
-    // 更新するデータを作成 (reminder の他の値も引き継ぐ)
     const reminderData: Reminder = {
-      ...reminder, // 既存のリマインダーデータをベースにする
+      ...reminder,
       message: finalMessage,
-      channel: selectedChannel?.name || reminder.channel, // チャンネル名が見つからなければ元の値を維持
+      channel: selectedChannel?.name || reminder.channel,
       channelId: channelId,
       startTime: new Date(startTime).toISOString(),
       recurrence,
-      // status, selectedEmojis, hideNextTime などは reminder から引き継がれる
+      notificationOffsets: parsedOffsets, // ★ パースしたオフセットを追加
     };
 
     try {
-      // updateExistingReminder を呼び出してリマインダーを更新
       await dispatch(updateExistingReminder(reminderData)).unwrap();
       dispatch(showToast({ message: 'ボスリマインダーを更新しました。', severity: 'success' }));
-      onCancel(); // 成功したらフォームを閉じる (一覧に戻る)
+      onCancel();
     } catch (error) {
       console.error(`Failed to update the boss reminder: `, error);
       dispatch(showToast({ message: `リマインダーの更新に失敗しました。`, severity: 'error' }));
     } finally {
-      // ★★★ 成功・失敗どちらでも解除 ★★★
       setIsSubmitting(false);
     }
   };
 
-  // JSX (画面の描画部分) - 基本は追加フォームと同じだが、ボタンなどを調整
   return (
-    // ★★★ Box に form 要素と背景色を追加 ★★★
     <Box component="form" onSubmit={handleSubmit} noValidate sx={{ p: 2, backgroundColor: 'action.hover', borderRadius: 1 }}>
         <Stack spacing={3}>
-          {/* ボス名選択 */}
           <FormControl component="fieldset">
             <FormLabel component="legend">ボス名</FormLabel>
             <RadioGroup row value={messageType} onChange={(e) => setMessageType(e.target.value as 'preset' | 'manual')}>
@@ -136,7 +123,7 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
           </FormControl>
 
           {messageType === 'preset' && (
-            <FormControl fullWidth variant="filled"> {/* ★ variant を filled に */}
+            <FormControl fullWidth variant="filled">
               <InputLabel id="preset-boss-select-label">定型ボス名</InputLabel>
               <Select
                 labelId="preset-boss-select-label"
@@ -146,7 +133,7 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
               >
                 {bossOptions.map((boss) => (
                   <MenuItem key={boss.name} value={boss.name}>
-                    {boss.group} {boss.name}
+                    {boss.group} {boss.name} {/* ★ ユーザー提供の表示形式に更新 */}
                   </MenuItem>
                 ))}
               </Select>
@@ -160,13 +147,12 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
               onChange={(e) => setManualMessage(e.target.value)}
               required
               fullWidth
-              variant="filled" // ★ variant を filled に
+              variant="filled"
             />
           )}
 
-          {/* チャンネル選択 */}
           <Stack direction="row" spacing={1} alignItems="center">
-            <FormControl fullWidth variant="filled"> {/* ★ variant を filled に */}
+            <FormControl fullWidth variant="filled">
               <InputLabel id="channel-select-label">通知チャンネル</InputLabel>
               <Select
                 labelId="channel-select-label"
@@ -182,7 +168,6 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
                     </MenuItem>
                   ))
                 ) : (
-                  // チャンネル情報がない場合も、既存のIDがあればそれを表示する（削除された可能性）
                   channelId ? <MenuItem value={channelId}>{reminder.channel || channelId}</MenuItem> : <MenuItem disabled>読込中...</MenuItem>
                 )}
               </Select>
@@ -192,7 +177,6 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
             </IconButton>
           </Stack>
 
-          {/* 起点日時 */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="stretch">
             <TextField
               label="最後にボスを討伐した日時 (起点)"
@@ -202,25 +186,33 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
               InputLabelProps={{ shrink: true }}
               required
               fullWidth
-              variant="filled" // ★ variant を filled に
+              variant="filled"
             />
             <Button variant="outlined" onClick={handleSetNow} startIcon={<AccessTimeIcon />}>
               NOW!
             </Button>
           </Stack>
 
-          {/* サイクル表示 (編集不可) */}
-          <Paper variant="outlined" sx={{ p: 2, backgroundColor: 'transparent' }}> {/* ★ 背景色を調整 */}
+          {/* ★★★★★ ここにオフセット入力欄を追加 ★★★★★ */}
+          <TextField
+            label="事前通知オフセット（分）"
+            value={offsets}
+            onChange={(e) => setOffsets(e.target.value)}
+            fullWidth
+            helperText="「60, 10, 0」と入力すると、60分前・10分前・時間丁度に通知されます。"
+            variant="filled"
+          />
+
+          <Paper variant="outlined" sx={{ p: 2, backgroundColor: 'transparent' }}>
              <Typography variant="body2" color="text.secondary">サイクル: 時間間隔 ({intervalHours}時間ごと)</Typography>
           </Paper>
 
-          {/* ★★★ ボタンを更新・キャンセルに変更 ★★★ */}
           <Stack direction="row" spacing={2} justifyContent="flex-end">
-            <Button onClick={onCancel} disabled={isSubmitting}> {/* ★ disabled を追加 */}
+            <Button onClick={onCancel} disabled={isSubmitting}>
               キャンセル
             </Button>
-            <Button type="submit" variant="contained" disabled={isSubmitting}> {/* ★ disabled を追加 */}
-              {isSubmitting ? '更新中...' : '更新する'} {/* ★ テキストを変更 */}
+            <Button type="submit" variant="contained" disabled={isSubmitting}>
+              {isSubmitting ? '更新中...' : '更新する'}
             </Button>
           </Stack>
         </Stack>

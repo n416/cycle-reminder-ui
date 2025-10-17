@@ -64,7 +64,8 @@ export const AddReminderTypeModal: React.FC<AddReminderTypeModalProps> = ({ open
               <ListItemIcon sx={{ minWidth: 40 }}>
                 <WaterIcon color="info" />
               </ListItemIcon>
-              <ListItemText id="hydra-label" primary="ヒュドラ" secondary="ヒュドラ用 (詳細未定)" />
+              {/* ★★★ ここの secondary テキストを修正 ★★★ */}
+              <ListItemText id="hydra-label" primary="ヒュドラ" secondary="毎日 12:30 と 20:30 に通知" />
             </ListItemButton>
           </ListItem>
           <ListItem disableGutters>

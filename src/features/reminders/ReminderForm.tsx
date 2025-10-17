@@ -99,6 +99,9 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
   const [channelId, setChannelId] = useState(reminder?.channelId || '');
   const [startTime, setStartTime] = useState(reminder ? toLocalISOString(new Date(reminder.startTime)) : '');
   const [startTimeValue, setStartTimeValue] = useState<Date | null>(reminder ? new Date(reminder.startTime) : null);
+  
+  const [offsets, setOffsets] = useState(reminder?.notificationOffsets?.join(', ') || '0');
+
 
   const [recurrenceType, setRecurrenceType] = useState(reminder?.recurrence.type || 'none');
   const [weeklyDays, setWeeklyDays] = useState(reminder?.recurrence.type === 'weekly' ? reminder.recurrence.days : []);
@@ -153,6 +156,12 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
     let recurrence: any;
     let status: 'active' | 'paused' = mode === 'edit' ? reminder!.status : 'active';
+    
+    const parsedOffsets = offsets
+      .split(',')
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n >= 0);
+
 
     if (recurrenceType === 'weekly') {
       if (weeklyDays.length === 0) {
@@ -162,7 +171,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
       recurrence = { type: 'weekly', days: weeklyDays };
     } else if (recurrenceType === 'interval') {
       recurrence = { type: 'interval', hours: Number(intervalHours) };
-    } else if (recurrenceType === 'daily') { // ★ 'daily' を追加
+    } else if (recurrenceType === 'daily') {
       recurrence = { type: 'daily' };
     } else {
       recurrence = { type: 'none' };
@@ -178,6 +187,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
       status,
       selectedEmojis,
       hideNextTime,
+      notificationOffsets: parsedOffsets,
     };
 
     try {
@@ -308,12 +318,21 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
           NOW!
         </Button>
       </Stack>
+      
+      <TextField
+        label="事前通知オフセット（分）"
+        value={offsets}
+        onChange={(e) => setOffsets(e.target.value)}
+        fullWidth
+        helperText="メッセージに {{offset}} を含めると「まであと N 分」のように自動置換されます。"
+        variant={mode === 'edit' ? 'filled' : 'outlined'}
+      />
 
       <FormControl component="fieldset">
         <FormLabel component="legend">サイクル</FormLabel>
         <RadioGroup row value={recurrenceType} onChange={(e) => setRecurrenceType(e.target.value as any)}>
           <FormControlLabel value="none" control={<Radio />} label="繰り返しなし" />
-          <FormControlLabel value="daily" control={<Radio />} label="日次" /> {/* ★ 'daily' を追加 */}
+          <FormControlLabel value="daily" control={<Radio />} label="日次" />
           <FormControlLabel value="weekly" control={<Radio />} label="週次" />
           <FormControlLabel value="interval" control={<Radio />} label="時間間隔" />
         </RadioGroup>
@@ -352,23 +371,19 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
           variant={mode === 'edit' ? 'filled' : 'outlined'}
         />
       )}
-
-      {/* ★★★★★ ここからが修正箇所 (プレビュー表示) ★★★★★ */}
+      
       {startTimeValue && (
         <Paper variant="outlined" sx={{ p: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
           
-          {/* 'none' または 'daily' の場合に時計を表示 */}
           {(recurrenceType === 'none' || recurrenceType === 'daily') && (
             <Stack alignItems="center" spacing={1}>
               <Clock value={startTimeValue} size={isSmallScreen ? 120 : 150} renderNumbers />
               <Typography variant="caption">
-                {/* recurrenceType に応じてテキストを切り替え */}
                 {recurrenceType === 'none' ? "この日時に1回だけ通知" : "毎日この時刻に通知"}
               </Typography>
             </Stack>
           )}
 
-          {/* 'weekly' の場合にカレンダーを表示 */}
           {recurrenceType === 'weekly' && (
             <Box sx={{ width: '100%', maxWidth: '350px', '& .react-calendar': { width: '100% !important' } }}>
               <Calendar
@@ -383,11 +398,9 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
             </Box>
           )}
 
-          {/* 'interval' の場合に複数の時計を表示 */}
           {recurrenceType === 'interval' && renderIntervalClocks()}
         </Paper>
       )}
-      {/* ★★★★★ ここまでが修正箇所 ★★★★★ */}
 
 
       <Box>
