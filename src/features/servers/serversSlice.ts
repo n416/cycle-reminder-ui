@@ -1,27 +1,24 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '@/app/store.ts';
 import apiClient from '@/api/client';
+import { setWriteToken } from '../auth/authSlice'; // ★ setWriteToken をインポート
 
 export interface Server {
   id: string;
   name: string;
   icon: string | null;
   role: 'admin' | 'member';
-  isAdded?: boolean; 
-  // ★★★★★ ここから追加 ★★★★★
+  isAdded?: boolean;
   customName?: string | null;
   customIcon?: string | null;
   serverType?: 'normal' | 'hit_the_world';
-  // ★★★★★ ここまで追加 ★★★★★
 }
 
-// ★★★★★ ここから追加 ★★★★★
 interface ServerSettings {
   customName: string | null;
   customIcon: string | null;
   serverType: 'normal' | 'hit_the_world';
 }
-// ★★★★★ ここまで追加 ★★★★★
 
 interface ServersState {
   servers: Server[];
@@ -42,7 +39,6 @@ export const fetchServers = createAsyncThunk('servers/fetchServers', async () =>
     return response.data as Server[];
   } catch (error) {
     console.warn("APIサーバーへの接続に失敗したため、テスト用のダミーデータを表示します。");
-    // ★★★ モックデータを更新 ★★★
     return [
       { id: 'mock1', name: 'ゲーム部 (テストデータ)', icon: null, role: 'admin', isAdded: true, serverType: 'normal' },
       { id: 'mock2', name: 'プログラミングサークル (テストデータ)', icon: null, role: 'member', isAdded: true, serverType: 'normal' },
@@ -58,20 +54,38 @@ export const updateServerPassword = createAsyncThunk(
   }
 );
 
-// ★★★★★ ここから追加 ★★★★★
+// ★★★★★ ここからが修正箇所です ★★★★★
 export const updateServerSettings = createAsyncThunk(
   'servers/updateSettings',
-  async ({ serverId, settings }: { serverId: string; settings: ServerSettings }, thunkAPI) => {
-    const state = thunkAPI.getState() as RootState;
-    // オーナー/テスターは自動でwriteTokenを持っているはずなので、それをヘッダーに付与する
-    const writeToken = state.auth.writeTokens[serverId];
-    const headers = writeToken ? { 'x-write-token': writeToken } : {};
+  async ({ serverId, settings }: { serverId: string; settings: ServerSettings }, { getState, dispatch }) => {
+    const state = getState() as RootState;
+    let writeToken = state.auth.writeTokens[serverId];
 
+    // ストアに書き込みトークンがなければ、その場で取得を試みる
+    if (!writeToken) {
+      try {
+        console.log(`[updateServerSettings] 書き込みトークンがないため、 /servers/${serverId}/verify-password を呼び出します。`);
+        const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
+        writeToken = response.data.writeToken;
+        // 取得したトークンを今後のためにストアに保存する
+        dispatch(setWriteToken({ serverId, token: writeToken }));
+        console.log("[updateServerSettings] 書き込みトークンの取得に成功しました。");
+      } catch (error) {
+        console.error("書き込みトークンの自動取得に失敗しました:", error);
+        // トークンが取得できなければ、thunkを失敗させる
+        throw new Error('Failed to acquire write permission.');
+      }
+    }
+    
+    // 取得した、あるいは元々あったトークンを使ってリクエストを送信
+    const headers = { 'x-write-token': writeToken };
+    console.log(`[updateServerSettings] トークンを使ってPUTリクエストを送信します。`);
     const response = await apiClient.put(`/servers/${serverId}/settings`, settings, { headers });
     return { serverId, settings: response.data as ServerSettings };
   }
 );
-// ★★★★★ ここまで追加 ★★★★★
+// ★★★★★ ここまでが修正箇所です ★★★★★
+
 
 export const serversSlice = createSlice({
   name: 'servers',
@@ -91,7 +105,6 @@ export const serversSlice = createSlice({
         state.status = 'failed';
         state.error = action.error.message || null;
       })
-      // ★★★★★ ここから追加 ★★★★★
       .addCase(updateServerSettings.fulfilled, (state, action: PayloadAction<{ serverId: string; settings: ServerSettings }>) => {
         const { serverId, settings } = action.payload;
         const existingServer = state.servers.find(server => server.id === serverId);
@@ -101,7 +114,6 @@ export const serversSlice = createSlice({
           existingServer.serverType = settings.serverType;
         }
       });
-      // ★★★★★ ここまで追加 ★★★★★
   },
 });
 
