@@ -13,11 +13,9 @@ const getInitialWriteTokens = (): { [serverId: string]: string } => {
 
 export type UserRole = 'owner' | 'supporter' | 'tester' | 'unknown';
 
-// ユーザーの役割情報を取得する非同期Thunk
 export const fetchUserStatus = createAsyncThunk('auth/fetchUserStatus', async () => {
-    // ★ 変更点: レスポンスからroleを取得する
-    const response = await apiClient.get('/auth/status');
-    return response.data.role as UserRole;
+  const response = await apiClient.get('/auth/status');
+  return response.data.role as UserRole;
 });
 
 interface AuthState {
@@ -44,21 +42,29 @@ export const authSlice = createSlice({
       sessionStorage.removeItem('writeTokens');
     },
     setUserRole: (state, action: PayloadAction<UserRole>) => {
-        state.userRole = action.payload;
+      state.userRole = action.payload;
+    },
+    logout: (state) => {
+      state.writeTokens = {};
+      state.userRole = 'unknown';
+      sessionStorage.removeItem('writeTokens');
+      localStorage.removeItem('auth-token');
+      console.log("【Auth】Logged out and cleared all tokens.");
     }
   },
-  extraReducers: (builder) => {
+    extraReducers: (builder) => {
     builder
-        .addCase(fetchUserStatus.fulfilled, (state, action) => {
-            state.userRole = action.payload;
-        })
-        .addCase(fetchUserStatus.rejected, (state) => {
-            state.userRole = 'supporter'; // 取得失敗時は安全のためサポーター扱い
-        });
+      .addCase(fetchUserStatus.fulfilled, (state, action) => {
+        state.userRole = action.payload;
+      })
+      .addCase(fetchUserStatus.rejected, (state) => {
+        state.userRole = 'supporter';
+      });
   }
 });
 
-export const { setWriteToken, clearWriteTokens, setUserRole } = authSlice.actions;
+// ★★★★★ logout をエクスポートに追加 ★★★★★
+export const { setWriteToken, clearWriteTokens, setUserRole, logout } = authSlice.actions;
 
 export const selectWriteTokenForServer = (serverId: string) => (state: RootState) => state.auth.writeTokens[serverId];
 export const selectUserRole = (state: RootState) => state.auth.userRole;
