@@ -88,12 +88,12 @@ export const AddBossReminderForm: React.FC = () => {
     const selectedChannel = channels?.find(ch => ch.id === channelId);
 
     const reminderData = {
-      message: finalMessage,
+      message: `${finalMessage} {{offset}}`, // {{offset}} を追加
       channel: selectedChannel?.name || '',
       channelId: channelId,
       startTime: new Date(startTime).toISOString(),
       recurrence,
-      status: 'active',
+      status: 'active' as const,
       selectedEmojis: [],
       hideNextTime: false,
       notificationOffsets: parsedOffsets,

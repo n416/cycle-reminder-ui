@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '@/app/store.ts';
 import apiClient from '@/api/client';
-import { setWriteToken } from '../auth/authSlice'; // ★ setWriteToken をインポート
+import { setWriteToken } from '../auth/authSlice';
 
+// --- 型定義 (変更なし) ---
 export interface Server {
   id: string;
   name: string;
@@ -13,13 +14,11 @@ export interface Server {
   customIcon?: string | null;
   serverType?: 'normal' | 'hit_the_world';
 }
-
 interface ServerSettings {
   customName: string | null;
   customIcon: string | null;
   serverType: 'normal' | 'hit_the_world';
 }
-
 interface ServersState {
   servers: Server[];
   status: 'idle' | 'loading' | 'succeeded' | 'failed';
@@ -32,59 +31,52 @@ const initialState: ServersState = {
   error: null,
   lastFetched: null,
 };
+// --- ここまで ---
+
+// ★★★★★ ここから下のThunkをすべて修正します ★★★★★
+
+// 共通ヘルパー関数：書き込み許可証を確実に取得する
+const ensureWriteToken = async (serverId: string, thunkAPI: any): Promise<string> => {
+  const { getState, dispatch } = thunkAPI;
+  const state = getState() as RootState;
+  let writeToken = state.auth.writeTokens[serverId];
+
+  if (!writeToken) {
+    const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
+    writeToken = response.data.writeToken;
+    dispatch(setWriteToken({ serverId, token: writeToken }));
+  }
+  return writeToken;
+};
 
 export const fetchServers = createAsyncThunk('servers/fetchServers', async () => {
-  try {
-    const response = await apiClient.get('/servers');
-    return response.data as Server[];
-  } catch (error) {
-    console.warn("APIサーバーへの接続に失敗したため、テスト用のダミーデータを表示します。");
-    return [
-      { id: 'mock1', name: 'ゲーム部 (テストデータ)', icon: null, role: 'admin', isAdded: true, serverType: 'normal' },
-      { id: 'mock2', name: 'プログラミングサークル (テストデータ)', icon: null, role: 'member', isAdded: true, serverType: 'normal' },
-    ] as Server[];
-  }
+  // 読み取り操作なので認証処理は不要
+  const response = await apiClient.get('/servers');
+  return response.data as Server[];
 });
 
 export const updateServerPassword = createAsyncThunk(
   'servers/updatePassword',
-  async ({ serverId, password }: { serverId: string; password: string }) => {
-    const response = await apiClient.put(`/servers/${serverId}/password`, { password });
+  async ({ serverId, password }: { serverId: string; password: string }, thunkAPI) => {
+    const writeToken = await ensureWriteToken(serverId, thunkAPI);
+    const response = await apiClient.put(`/servers/${serverId}/password`, { password }, {
+      headers: { 'x-write-token': writeToken }
+    });
     return response.data;
   }
 );
 
-// ★★★★★ ここからが修正箇所です ★★★★★
 export const updateServerSettings = createAsyncThunk(
   'servers/updateSettings',
-  async ({ serverId, settings }: { serverId: string; settings: ServerSettings }, { getState, dispatch }) => {
-    const state = getState() as RootState;
-    let writeToken = state.auth.writeTokens[serverId];
-
-    // ストアに書き込みトークンがなければ、その場で取得を試みる
-    if (!writeToken) {
-      try {
-        console.log(`[updateServerSettings] 書き込みトークンがないため、 /servers/${serverId}/verify-password を呼び出します。`);
-        const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
-        writeToken = response.data.writeToken;
-        // 取得したトークンを今後のためにストアに保存する
-        dispatch(setWriteToken({ serverId, token: writeToken }));
-        console.log("[updateServerSettings] 書き込みトークンの取得に成功しました。");
-      } catch (error) {
-        console.error("書き込みトークンの自動取得に失敗しました:", error);
-        // トークンが取得できなければ、thunkを失敗させる
-        throw new Error('Failed to acquire write permission.');
-      }
-    }
-    
-    // 取得した、あるいは元々あったトークンを使ってリクエストを送信
-    const headers = { 'x-write-token': writeToken };
-    console.log(`[updateServerSettings] トークンを使ってPUTリクエストを送信します。`);
-    const response = await apiClient.put(`/servers/${serverId}/settings`, settings, { headers });
+  async ({ serverId, settings }: { serverId: string; settings: ServerSettings }, thunkAPI) => {
+    const writeToken = await ensureWriteToken(serverId, thunkAPI);
+    const response = await apiClient.put(`/servers/${serverId}/settings`, settings, {
+      headers: { 'x-write-token': writeToken }
+    });
     return { serverId, settings: response.data as ServerSettings };
   }
 );
-// ★★★★★ ここまでが修正箇所です ★★★★★
+// ★★★★★ ここまで ★★★★★
 
 
 export const serversSlice = createSlice({
@@ -93,25 +85,15 @@ export const serversSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(fetchServers.pending, (state) => {
-        state.status = 'loading';
-      })
-      .addCase(fetchServers.fulfilled, (state, action: PayloadAction<Server[]>) => {
-        state.status = 'succeeded';
-        state.servers = action.payload;
-        state.lastFetched = Date.now();
-      })
-      .addCase(fetchServers.rejected, (state, action) => {
-        state.status = 'failed';
-        state.error = action.error.message || null;
-      })
+      .addCase(fetchServers.pending, (state) => { state.status = 'loading'; })
+      .addCase(fetchServers.fulfilled, (state, action: PayloadAction<Server[]>) => { state.status = 'succeeded'; state.servers = action.payload; state.lastFetched = Date.now(); })
+      .addCase(fetchServers.rejected, (state, action) => { state.status = 'failed'; state.error = action.error.message || null; })
       .addCase(updateServerSettings.fulfilled, (state, action: PayloadAction<{ serverId: string; settings: ServerSettings }>) => {
-        const { serverId, settings } = action.payload;
-        const existingServer = state.servers.find(server => server.id === serverId);
+        const existingServer = state.servers.find(server => server.id === action.payload.serverId);
         if (existingServer) {
-          existingServer.customName = settings.customName;
-          existingServer.customIcon = settings.customIcon;
-          existingServer.serverType = settings.serverType;
+          existingServer.customName = action.payload.settings.customName;
+          existingServer.customIcon = action.payload.settings.customIcon;
+          existingServer.serverType = action.payload.settings.serverType;
         }
       });
   },

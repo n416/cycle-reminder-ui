@@ -15,18 +15,15 @@ import { SubscriptionPage } from '@/pages/SubscriptionPage';
 import { PaymentSuccessPage } from '@/pages/PaymentSuccessPage';
 import { PaymentCancelPage } from '@/pages/PaymentCancelPage';
 import { Toast } from '@/features/toast/Toast';
+import { SessionExpiredDialog } from '@/features/session/SessionExpiredDialog'; // ★ インポート
 
 function App() {
-  console.log("【Debug】1. App component is rendering."); // ★ デバッグログ
   const dispatch = useAppDispatch();
 
   useEffect(() => {
     const token = localStorage.getItem('auth-token');
     if (token) {
-      console.log("【Debug】App: Token found, dispatching fetchUserStatus."); // ★ デバッグログ
       dispatch(fetchUserStatus());
-    } else {
-      console.log("【Debug】App: No token found."); // ★ デバッグログ
     }
   }, [dispatch]);
 
@@ -34,6 +31,7 @@ function App() {
     <>
       <CssBaseline />
       <Toast />
+      <SessionExpiredDialog />
       <Routes>
         {/* ★ デバッグ用ルート */}
         <Route path="/ping" element={<h1>Pong! Page is working.</h1>} />

@@ -55,11 +55,11 @@ export const AddHydraReminderForm: React.FC = () => {
     
     const recurrence = { type: 'daily' as 'daily' };
     
-    // ★★★ ヒュドラ用の事前通知オフセットを定義 ★★★
     const hydraOffsets = [30, 5, 0];
 
+    // ★★★★★ ここからが修正箇所です ★★★★★
     const hydraNoonData = {
-      message: "ヒュドラ (昼)",
+      message: "ヒュドラ (昼) {{offset}}", // {{offset}} を追加
       channel: selectedChannel?.name || '',
       channelId: channelId,
       startTime: getISOTimeForToday(12, 30),
@@ -67,11 +67,11 @@ export const AddHydraReminderForm: React.FC = () => {
       status: 'active',
       selectedEmojis: [],
       hideNextTime: false,
-      notificationOffsets: hydraOffsets, // ★ オフセットを追加
+      notificationOffsets: hydraOffsets,
     };
 
     const hydraNightData = {
-      message: "ヒュドラ (夜)",
+      message: "ヒュドラ (夜) {{offset}}", // {{offset}} を追加
       channel: selectedChannel?.name || '',
       channelId: channelId,
       startTime: getISOTimeForToday(20, 30),
@@ -79,8 +79,9 @@ export const AddHydraReminderForm: React.FC = () => {
       status: 'active',
       selectedEmojis: [],
       hideNextTime: false,
-      notificationOffsets: hydraOffsets, // ★ オフセットを追加
+      notificationOffsets: hydraOffsets,
     };
+    // ★★★★★ ここまで ★★★★★
 
     try {
       await dispatch(addNewReminder({ serverId, newReminder: hydraNoonData as Omit<Reminder, 'id'|'serverId'> })).unwrap();

@@ -6,14 +6,13 @@ import { Provider } from 'react-redux';
 import { store } from './app/store.ts';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeRegistry } from './components/ThemeRegistry.tsx';
-import { setupErrorInterceptors } from './api/client.ts'; // ★ インポート
+import { setupInterceptors } from './api/client.ts'; // ★ インポート名を変更
 
-setupErrorInterceptors(store);
+setupInterceptors(store); // ★ 関数名を変更
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Provider store={store}>
-      {/* 2. ThemeProviderの代わりにThemeRegistryでラップする */}
       <ThemeRegistry>
         <BrowserRouter>
           <App />

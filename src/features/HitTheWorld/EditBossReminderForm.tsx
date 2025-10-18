@@ -22,8 +22,6 @@ const bossOptions = [
   { group: '黎明', name: '5F） アズラエル' },
 ];
 
-// ★★★★★ safeCreateDate関数を削除 ★★★★★
-
 const toLocalISOString = (date: Date): string => {
   const tzoffset = date.getTimezoneOffset() * 60000;
   const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
@@ -49,13 +47,14 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
     }
   }, [reminder.serverId, channels, dispatch]);
 
-  const isPreset = bossOptions.some(boss => boss.name === reminder.message);
+  const messageWithoutOffset = reminder.message.replace('{{offset}}', '').trim();
+  const isPreset = bossOptions.some(boss => boss.name === messageWithoutOffset);
+  
   const [messageType, setMessageType] = useState<'preset' | 'manual'>(isPreset ? 'preset' : 'manual');
-  const [presetMessage, setPresetMessage] = useState<string>(isPreset ? reminder.message : bossOptions[0].name);
-  const [manualMessage, setManualMessage] = useState<string>(isPreset ? '' : reminder.message);
+  const [presetMessage, setPresetMessage] = useState<string>(isPreset ? messageWithoutOffset : bossOptions[0].name);
+  const [manualMessage, setManualMessage] = useState<string>(isPreset ? '' : messageWithoutOffset);
   const [channelId, setChannelId] = useState(reminder.channelId);
 
-  // ★★★★★ startTimeの初期化をシンプルに修正 ★★★★★
   const initialDate = reminder.startTime ? new Date(reminder.startTime) : null;
   const [startTime, setStartTime] = useState(initialDate ? toLocalISOString(initialDate) : '');
   
@@ -75,13 +74,17 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const finalMessage = messageType === 'preset' ? presetMessage : manualMessage;
+    let finalMessage = messageType === 'preset' ? presetMessage : manualMessage;
     if (!finalMessage || !channelId || !startTime || !reminder.serverId) {
         dispatch(showToast({ message: 'すべての項目を入力してください。', severity: 'warning' }));
         setIsSubmitting(false);
         return;
     }
     
+    if (!finalMessage.includes('{{offset}}')) {
+      finalMessage = `${finalMessage} {{offset}}`;
+    }
+
     const parsedOffsets = offsets
       .split(',')
       .map(s => parseInt(s.trim(), 10))
