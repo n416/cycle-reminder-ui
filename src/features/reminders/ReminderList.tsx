@@ -183,17 +183,13 @@ export const ReminderList = () => {
   const userRole = useAppSelector(selectUserRole);
 
   const currentServer = servers.find(s => s.id === serverId);
+
+  const [isAuthorizing, setIsAuthorizing] = useState(true);
+
   const isDiscordAdmin = currentServer?.role === 'admin';
-
-  const needsAdminToken = (userRole === 'tester') || (isDiscordAdmin && userRole === 'owner');
-  const canWrite = needsAdminToken || !!writeToken;
-
-  const serverName = currentServer?.customName || currentServer?.name || '';
-  const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
-  const isHitServer = currentServer?.serverType === 'hit_the_world';
-
-  // 「今日の予定」リマインダーが既に存在するかをチェック
-  const hasDailySummaryReminder = reminders.some(r => r.message.includes('{{all}}'));
+  const isOwnerOrTester = userRole === 'owner' || userRole === 'tester';
+  // オーナー/テスター、または書き込みトークンがあれば編集可能
+  const canWrite = (isOwnerOrTester && isDiscordAdmin) || !!writeToken;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -203,10 +199,14 @@ export const ReminderList = () => {
   const [passwordError, setPasswordError] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
   const isMenuOpen = Boolean(menuAnchorEl);
+  // ★★★★★ ここまで ★★★★★
 
+  const serverName = currentServer?.customName || currentServer?.name || '';
+  const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
+  const isHitServer = currentServer?.serverType === 'hit_the_world';
+  const hasDailySummaryReminder = reminders.some(r => r.message.includes('{{all}}'));
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
   const [isSummaryDialogOpen, setSummaryDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -225,20 +225,32 @@ export const ReminderList = () => {
     }
   }, [serverId, dispatch]);
 
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  // パスワードの有無を確認し、なければ自動で編集を有効化するuseEffect
   useEffect(() => {
-    if (currentServer && needsAdminToken && !writeToken) {
-      const getAdminToken = async () => {
+    if (serverId && !canWrite) {
+      setIsAuthorizing(true);
+      const authorizeEditing = async () => {
         try {
-          const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
-          const { writeToken: adminToken } = response.data;
-          dispatch(setWriteToken({ serverId: serverId!, token: adminToken }));
+          const statusRes = await apiClient.get(`/servers/${serverId}/password-status`);
+          const { hasPassword } = statusRes.data;
+
+          // パスワードがなければ、自動で書き込みトークンを取得する
+          if (!hasPassword) {
+            const tokenRes = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
+            dispatch(setWriteToken({ serverId, token: tokenRes.data.writeToken }));
+          }
         } catch (error) {
-          console.error("管理者トークンの自動取得に失敗しました:", error);
+          console.error("Failed to auto-authorize editing:", error);
+        } finally {
+          setIsAuthorizing(false);
         }
       };
-      getAdminToken();
+      authorizeEditing();
+    } else {
+      setIsAuthorizing(false);
     }
-  }, [currentServer, needsAdminToken, writeToken, serverId, dispatch]);
+  }, [serverId, dispatch, canWrite]);
 
   useEffect(() => {
     if (remindersStatus === 'succeeded' && location.state?.linkedReminderId) {
@@ -286,6 +298,7 @@ export const ReminderList = () => {
       if (hasPassword) {
         setPasswordModalOpen(true);
       } else {
+        // このルートは基本的に新しいuseEffectで処理されるが、念のため残す
         const tokenRes = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
         const { writeToken } = tokenRes.data;
         dispatch(setWriteToken({ serverId, token: writeToken }));
@@ -348,7 +361,7 @@ export const ReminderList = () => {
   const selectedReminder = reminders.find(r => r.id === currentReminderId);
 
   let content;
-  if (remindersStatus === 'loading' || serversStatus !== 'succeeded' || !currentServer) {
+  if (remindersStatus === 'loading' || serversStatus !== 'succeeded' || !currentServer || isAuthorizing) {
     content = <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
   } else if (remindersStatus === 'succeeded') {
     if (reminders.length > 0) {
@@ -410,13 +423,13 @@ export const ReminderList = () => {
 
   return (
     <>
-      {needsAdminToken && serverId && <MissedNotifications serverId={serverId} />}
+      {isDiscordAdmin && serverId && <MissedNotifications serverId={serverId} />}
 
       <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Stack direction="row" spacing={2} alignItems="center">
           <Avatar src={serverIconUrl || undefined}><ServerIcon serverName={serverName} /></Avatar>
           <Typography variant="h5">{serverName}</Typography>
-          {needsAdminToken && (
+          {isDiscordAdmin && (
             <IconButton onClick={() => setIsSettingsOpen(true)} size="small" aria-label="サーバー設定">
               <SettingsIcon />
             </IconButton>
@@ -426,7 +439,8 @@ export const ReminderList = () => {
           <Button component={Link} to={`/servers/${serverId}/log`} variant="outlined" startIcon={<HistoryIcon />}>
             操作ログ
           </Button>
-          {!canWrite && (
+          {/* ★★★★★ ボタンの表示条件を修正 ★★★★★ */}
+          {!canWrite && !isAuthorizing && (
             <Button
               variant="outlined"
               startIcon={isUnlocking ? <CircularProgress size={20} /> : <LockOpenIcon />}
