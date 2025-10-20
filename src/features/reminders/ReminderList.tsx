@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
 import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder } from './remindersSlice.ts';
-import { selectAllServers, getServersStatus, getLastFetched, fetchServers, Server } from '@/features/servers/serversSlice';
+import { selectAllServers, getServersStatus, Server } from '@/features/servers/serversSlice';
 import { selectWriteTokenForServer, setWriteToken, selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import { MissedNotifications } from '../missed-notifications/MissedNotifications.tsx';
@@ -54,8 +54,6 @@ import { AddReminderTypeModal } from '../HitTheWorld/AddReminderTypeModal';
 import { AddDailySummaryCard } from './AddDailySummaryCard';
 import { DailySummaryDialog } from './DailySummaryDialog';
 
-// ★★★★★ 複雑なsafeCreateDate関数を削除 ★★★★★
-
 const getServerIconUrl = (server: Server): string | null => {
   if (server.customIcon) {
     return server.customIcon;
@@ -70,7 +68,6 @@ const dateTimeFormatOptions: Intl.DateTimeFormatOptions = {
   month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit'
 };
 
-// ★★★★★ new Date()に直接文字列を渡すように修正 ★★★★★
 const formatStartTime = (startTimeValue: string): string => {
   const date = new Date(startTimeValue);
   if (isNaN(date.getTime())) return "無効な日付";
@@ -89,7 +86,7 @@ const weekDayMap: { [key: string]: string } = {
 };
 
 const formatRecurrenceDetails = (reminder: Reminder): string => {
-  const date = new Date(reminder.startTime); // ★★★ 修正 ★★★
+  const date = new Date(reminder.startTime);
   if (isNaN(date.getTime())) return "日付設定エラー";
   const timeString = date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
@@ -109,7 +106,7 @@ const formatRecurrenceDetails = (reminder: Reminder): string => {
 
 const calculateNextOccurrence = (reminder: Reminder): Date | null => {
   const now = new Date();
-  const startDate = new Date(reminder.startTime); // ★★★ 修正 ★★★
+  const startDate = new Date(reminder.startTime);
   if (isNaN(startDate.getTime())) return null;
 
   switch (reminder.recurrence.type) {
@@ -178,28 +175,27 @@ export const ReminderList = () => {
 
   const servers = useAppSelector(selectAllServers);
   const serversStatus = useAppSelector(getServersStatus);
-  const lastFetched = useAppSelector(getLastFetched);
   const writeToken = useAppSelector(selectWriteTokenForServer(serverId!));
   const userRole = useAppSelector(selectUserRole);
 
   const currentServer = servers.find(s => s.id === serverId);
 
-  const [isAuthorizing, setIsAuthorizing] = useState(true);
-
   const isDiscordAdmin = currentServer?.role === 'admin';
   const isOwnerOrTester = userRole === 'owner' || userRole === 'tester';
-  // オーナー/テスター、または書き込みトークンがあれば編集可能
+
   const canWrite = (isOwnerOrTester && isDiscordAdmin) || !!writeToken;
+  const canCreate = isOwnerOrTester && isDiscordAdmin;
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  // ★★★★★ ここからが修正箇所です ★★★★★
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [currentReminderId, setCurrentReminderId] = useState<null | string>(null);
+  const isMenuOpen = Boolean(menuAnchorEl);
+  // ★★★★★ ここまで ★★★★★
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
-  const isMenuOpen = Boolean(menuAnchorEl);
-  // ★★★★★ ここまで ★★★★★
 
   const serverName = currentServer?.customName || currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
@@ -210,108 +206,12 @@ export const ReminderList = () => {
   const [isSummaryDialogOpen, setSummaryDialogOpen] = useState(false);
 
   useEffect(() => {
-    const CACHE_DURATION = 5 * 60 * 1000;
-    const now = Date.now();
-    if (serversStatus !== 'loading') {
-      if (!lastFetched || (now - lastFetched > CACHE_DURATION)) {
-        dispatch(fetchServers());
-      }
-    }
-  }, [dispatch, lastFetched, serversStatus]);
-
-  useEffect(() => {
     if (serverId) {
       dispatch(fetchReminders(serverId));
     }
   }, [serverId, dispatch]);
 
   // ★★★★★ ここからが修正箇所です ★★★★★
-  // パスワードの有無を確認し、なければ自動で編集を有効化するuseEffect
-  useEffect(() => {
-    if (serverId && !canWrite) {
-      setIsAuthorizing(true);
-      const authorizeEditing = async () => {
-        try {
-          const statusRes = await apiClient.get(`/servers/${serverId}/password-status`);
-          const { hasPassword } = statusRes.data;
-
-          // パスワードがなければ、自動で書き込みトークンを取得する
-          if (!hasPassword) {
-            const tokenRes = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
-            dispatch(setWriteToken({ serverId, token: tokenRes.data.writeToken }));
-          }
-        } catch (error) {
-          console.error("Failed to auto-authorize editing:", error);
-        } finally {
-          setIsAuthorizing(false);
-        }
-      };
-      authorizeEditing();
-    } else {
-      setIsAuthorizing(false);
-    }
-  }, [serverId, dispatch, canWrite]);
-
-  useEffect(() => {
-    if (remindersStatus === 'succeeded' && location.state?.linkedReminderId) {
-      const { linkedReminderId } = location.state;
-      const reminderExists = reminders.some(r => r.id === linkedReminderId);
-
-      if (reminderExists) {
-        const element = document.getElementById(`reminder-${linkedReminderId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.style.backgroundColor = 'rgba(255, 255, 0, 0.2)';
-          setTimeout(() => {
-            element.style.backgroundColor = '';
-          }, 2000);
-        }
-      } else {
-        dispatch(showToast({ message: 'リンク先のリマインダーは削除されています。', severity: 'warning' }));
-      }
-
-      window.history.replaceState({ ...location.state, linkedReminderId: null }, document.title);
-    }
-  }, [remindersStatus, reminders, location.state, dispatch]);
-
-  const handleUnlock = async () => {
-    if (!serverId) return;
-    try {
-      const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password });
-      const { writeToken } = response.data;
-      dispatch(setWriteToken({ serverId, token: writeToken }));
-      setPasswordModalOpen(false);
-      setPasswordError('');
-      setPassword('');
-    } catch (error) {
-      setPasswordError('パスワードが違います。');
-    }
-  };
-
-  const handleEnableEditing = async () => {
-    if (!serverId) return;
-    setIsUnlocking(true);
-    try {
-      const statusRes = await apiClient.get(`/servers/${serverId}/password-status`);
-      const { hasPassword } = statusRes.data;
-
-      if (hasPassword) {
-        setPasswordModalOpen(true);
-      } else {
-        // このルートは基本的に新しいuseEffectで処理されるが、念のため残す
-        const tokenRes = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
-        const { writeToken } = tokenRes.data;
-        dispatch(setWriteToken({ serverId, token: writeToken }));
-        dispatch(showToast({ message: '編集が有効になりました。', severity: 'success' }));
-      }
-    } catch (error) {
-      console.error("Failed to enable editing:", error);
-      dispatch(showToast({ message: '編集の有効化に失敗しました。', severity: 'error' }));
-    } finally {
-      setIsUnlocking(false);
-    }
-  };
-
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>, reminderId: string) => {
     setMenuAnchorEl(event.currentTarget);
     setCurrentReminderId(reminderId);
@@ -343,21 +243,8 @@ export const ReminderList = () => {
       dispatch(showToast({ message: 'テスト送信に失敗しました。', severity: 'error' }));
     }
   };
+  // ★★★★★ ここまで ★★★★★
 
-  const handleAddClick = () => {
-    if (isHitServer) {
-      setIsTypeModalOpen(true);
-    } else {
-      navigate(`/servers/${serverId}/add`);
-    }
-  };
-
-  const handleTypeSelected = (type: 'boss' | 'hydra' | 'normal') => {
-    setIsTypeModalOpen(false);
-    navigate(`/servers/${serverId}/add?type=${type}`);
-  };
-
-  // ★★★★★ ここからが修正箇所です ★★★★★
   const handleTimeAdjust = async (reminder: Reminder, minutes: number) => {
     const originalDate = new Date(reminder.startTime);
     if (isNaN(originalDate.getTime())) {
@@ -381,14 +268,15 @@ export const ReminderList = () => {
       dispatch(showToast({ message: '日時の更新に失敗しました。', severity: 'error' }));
     }
   };
-  // ★★★★★ ここまで ★★★★★
 
-
-  const selectedReminder = reminders.find(r => r.id === currentReminderId);
 
   let content;
-  if (remindersStatus === 'loading' || serversStatus !== 'succeeded' || !currentServer || isAuthorizing) {
+  if (serversStatus !== 'succeeded' || remindersStatus === 'loading') {
     content = <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
+  } else if (!currentServer) {
+    content = <Typography color="error" sx={{ mt: 4, textAlign: 'center' }}>指定されたサーバーの情報が見つかりませんでした。</Typography>;
+  } else if (remindersStatus === 'failed') {
+    content = <Typography color="error">エラー: {error}</Typography>;
   } else if (remindersStatus === 'succeeded') {
     if (reminders.length > 0) {
       content = reminders.map((reminder) => {
@@ -402,7 +290,6 @@ export const ReminderList = () => {
 
         return (
           <Accordion key={reminder.id} id={`reminder-${reminder.id}`} TransitionProps={{ unmountOnExit: true }}>
-            {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Stack
                 direction={{ xs: 'column', sm: 'row' }}
@@ -446,77 +333,67 @@ export const ReminderList = () => {
                 </Stack>
               </Stack>
             </AccordionSummary>
-            <AccordionDetails sx={{ p: { xs: 1, sm: 2 } }}>
-            {/* ★★★★★ ここまで ★★★★★ */}
+            <AccordionDetails sx={{ p: 0 }}>
               {isEditing ? (
-                <EditReminderForm reminder={reminder} onCancel={() => setEditingId(null)} />
+                 <Box sx={{ p: { xs: 1, sm: 2 } }}>
+                    <EditReminderForm reminder={reminder} onCancel={() => setEditingId(null)} />
+                 </Box>
               ) : (
-                <Stack spacing={2}>
-                  <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+                <Stack spacing={0}>
+                  <Box sx={{ p: 2, bgcolor: 'action.hover', margin: 2 }}>
                     <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
                       {displayMessage}
                     </Typography>
                   </Box>
-                  <Divider />
-                  <Stack spacing={1.5}>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
-                    <Stack direction="column" alignItems="flex-start" spacing={1}>
-                      <Stack direction="row" alignItems="center" spacing={1.5}>
-                        <CalendarMonthIcon color="action" sx={{ fontSize: 20 }} />
-                        <Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{formatStartTime(reminder.startTime)}</Typography>
-                      </Stack>
+                  <Box sx={{ p: { xs: 1, sm: 2 } }}>
+                    <Divider sx={{ my: 2 }} />
+                    <Stack spacing={1.5}>
+                      <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
                       
-                      {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
-                      {canWrite && (
-                        <Stack 
-                          direction={{ xs: 'column', sm: 'row' }} 
-                          spacing={{ xs: 1, sm: 2 }} 
-                          alignItems="flex-start" 
-                          sx={{ pl: '32px', pt: 1 }}
-                        >
+                      <Stack direction="row" alignItems="flex-start" spacing={1.5}>
+                        <CalendarMonthIcon color="action" sx={{ fontSize: 20, mt: '8px' }} />
+                        <Stack direction="column" spacing={1} sx={{ width: '100%' }}>
                           <Box>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>進める</Typography>
-                            <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                              {[1, 5, 10].map((min) => (
-                                <Button
-                                  key={`fwd-${min}`}
-                                  size="small"
-                                  variant="contained"
-                                  onClick={() => handleTimeAdjust(reminder, min)}
-                                >
-                                  {min}分
-                                </Button>
-                              ))}
-                            </Stack>
+                            <Typography variant="body2" color="text.secondary" sx={{ width: '80px' }}>起点日時</Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 500 }}>{formatStartTime(reminder.startTime)}</Typography>
                           </Box>
-
-                          <Box>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>戻す</Typography>
-                            <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                              {[-1, -5, -10].map((min) => (
-                                <Button
-                                  key={`back-${min}`}
-                                  size="small"
-                                  variant="contained"
-                                  onClick={() => handleTimeAdjust(reminder, min)}
-                                >
-                                  {Math.abs(min)}分
-                                </Button>
-                              ))}
+                          {canWrite && (
+                            <Stack 
+                              direction={{ xs: 'column', sm: 'row' }} 
+                              spacing={{ xs: 0.5, sm: 2 }} 
+                              alignItems="flex-start"
+                            >
+                              <Box>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', pl: 0.5 }}>進める</Typography>
+                                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                                  {[1, 5, 10].map((min) => (
+                                    <Button key={`fwd-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{min}分</Button>
+                                  ))}
+                                </Stack>
+                              </Box>
+                              <Box>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', pl: 0.5 }}>戻す</Typography>
+                                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                                  {[-1, -5, -10].map((min) => (
+                                    <Button key={`back-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{Math.abs(min)}分</Button>
+                                  ))}
+                                </Stack>
+                              </Box>
                             </Stack>
-                          </Box>
+                          )}
                         </Stack>
-                      )}
+                      </Stack>
+
+                      <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
+                    </Stack>
+                    <Divider sx={{ my: 2 }} />
+                    <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                      {canWrite && <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setEditingId(reminder.id)}>編集</Button>}
+                      {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+                      <IconButton aria-label="その他のアクション" onClick={(e) => handleMenuClick(e, reminder.id)}><MoreVertIcon /></IconButton>
                       {/* ★★★★★ ここまで ★★★★★ */}
                     </Stack>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
-                  </Stack>
-                  <Divider />
-                  <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
-                    {canWrite && <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setEditingId(reminder.id)}>編集</Button>}
-                    <IconButton aria-label="その他のアクション" onClick={(e) => handleMenuClick(e, reminder.id)}><MoreVertIcon /></IconButton>
-                  </Stack>
+                  </Box>
                 </Stack>
               )}
             </AccordionDetails>
@@ -526,47 +403,44 @@ export const ReminderList = () => {
     } else {
       content = <Typography sx={{ mt: 4, textAlign: 'center' }}>このサーバーにはリマインダーはまだありません。</Typography>;
     }
-  } else if (remindersStatus === 'failed') {
-    content = <Typography color="error">エラー: {error}</Typography>;
   }
+
+  const selectedReminder = reminders.find(r => r.id === currentReminderId);
 
   return (
     <>
       {isDiscordAdmin && serverId && <MissedNotifications serverId={serverId} />}
-
-      <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <Avatar src={serverIconUrl || undefined}><ServerIcon serverName={serverName} /></Avatar>
-          <Typography variant="h5">{serverName}</Typography>
-          {isDiscordAdmin && (
-            <IconButton onClick={() => setIsSettingsOpen(true)} size="small" aria-label="サーバー設定">
-              <SettingsIcon />
-            </IconButton>
-          )}
-        </Stack>
-        <Stack direction="row" spacing={1}>
-          <Button component={Link} to={`/servers/${serverId}/log`} variant="outlined" startIcon={<HistoryIcon />}>
-            操作ログ
-          </Button>
-          {!canWrite && !isAuthorizing && (
-            <Button
-              variant="outlined"
-              startIcon={isUnlocking ? <CircularProgress size={20} /> : <LockOpenIcon />}
-              onClick={handleEnableEditing}
-              disabled={isUnlocking}
-            >
-              {isUnlocking ? '確認中...' : '編集を有効にする'}
+      
+      {currentServer && (
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={{ xs: 1, sm: 2 }}
+          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          justifyContent="space-between"
+          sx={{ mb: 2 }}
+        >
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ minWidth: 0 }}>
+            <Avatar src={serverIconUrl || undefined}><ServerIcon serverName={serverName} /></Avatar>
+            <Typography variant="h5" noWrap>{serverName}</Typography>
+            {isDiscordAdmin && (
+              <IconButton onClick={() => setIsSettingsOpen(true)} size="small" aria-label="サーバー設定">
+                <SettingsIcon />
+              </IconButton>
+            )}
+          </Stack>
+          <Stack direction="row" spacing={1} alignSelf={{ xs: 'flex-end', sm: 'center' }}>
+            <Button component={Link} to={`/servers/${serverId}/log`} variant="outlined" startIcon={<HistoryIcon />}>
+              操作ログ
             </Button>
-          )}
+          </Stack>
         </Stack>
-      </Stack>
-
-      <Stack spacing={1.5}>{content}</Stack>
-
-      {canWrite && !hasDailySummaryReminder && (
-        <AddDailySummaryCard onClick={() => setSummaryDialogOpen(true)} />
       )}
 
+      <Stack spacing={1.5}>{content}</Stack>
+      
+      {canCreate && <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={() => navigate(`/servers/${serverId}/add`)}><AddIcon /></Fab>}
+
+      {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
       <Menu anchorEl={menuAnchorEl} open={isMenuOpen} onClose={handleMenuClose}>
         {selectedReminder && (
           <div>
@@ -593,55 +467,9 @@ export const ReminderList = () => {
           </div>
         )}
       </Menu>
+      {/* ★★★★★ ここまで ★★★★★ */}
 
-      {canWrite && (
-        <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={handleAddClick}>
-          <AddIcon />
-        </Fab>
-      )}
-
-      <Dialog open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)}>
-        <DialogTitle>パスワードの入力</DialogTitle>
-        <DialogContent>
-          <DialogContentText>このサーバーのリマインダーを編集するには、設定されたパスワードを入力してください。</DialogContentText>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="サーバーパスワード"
-            type="password"
-            fullWidth
-            variant="standard"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            error={!!passwordError}
-            helperText={passwordError}
-            onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setPasswordModalOpen(false); setPasswordError(''); }}>キャンセル</Button>
-          <Button onClick={handleUnlock}>アンロック</Button>
-        </DialogActions>
-      </Dialog>
-
-      <ServerSettingsModal
-        open={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        server={currentServer ?? null}
-      />
-
-      <AddReminderTypeModal
-        open={isTypeModalOpen}
-        onClose={() => setIsTypeModalOpen(false)}
-        onSelect={handleTypeSelected}
-      />
-      {serverId && (
-        <DailySummaryDialog
-          isOpen={isSummaryDialogOpen}
-          onClose={() => setSummaryDialogOpen(false)}
-          serverId={serverId}
-        />
-      )}
+      <ServerSettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} server={currentServer ?? null} />
     </>
   );
 };

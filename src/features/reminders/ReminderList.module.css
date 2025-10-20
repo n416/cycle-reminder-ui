@@ -1,0 +1,240 @@
+.container {
+  padding: 0;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Header */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px;
+}
+.serverInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #555;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.avatar img { width: 100%; height: 100%; border-radius: 50%; }
+.serverInfo h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.headerActions {
+  display: flex;
+  justify-content: flex-end;
+}
+@media (min-width: 600px) {
+  .header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0;
+  }
+}
+
+/* Accordion */
+.accordion {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+.accordion:not(:last-child) {
+  margin-bottom: 8px;
+}
+.summary {
+  padding: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.summary::-webkit-details-marker { display: none; }
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.summaryIcon {
+  font-size: 1.2rem;
+}
+.summaryMain {
+  min-width: 0;
+}
+.summaryTitle {
+  margin: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.summaryNextTime {
+  font-size: 0.8rem;
+  color: #555;
+  margin: 2px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.paused {
+  text-decoration: line-through;
+  color: #888;
+}
+.summaryChevron {
+  transition: transform 0.2s;
+}
+.accordion[open] .summaryChevron {
+  transform: rotate(180deg);
+}
+
+@media (min-width: 600px) {
+  .summaryGrid {
+    grid-template-columns: auto 1fr auto auto;
+  }
+  .summaryNextTime {
+    grid-column: 3;
+    padding-right: 16px;
+  }
+  .summaryChevron {
+    grid-column: 4;
+  }
+}
+
+/* Details */
+.details {
+  padding: 8px 12px 12px;
+  border-top: 1px solid #e0e0e0;
+  background-color: #fafafa;
+}
+.detailsContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.messageContent {
+  background-color: #f0f0f0;
+  padding: 8px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.infoGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.infoRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.infoRow > span:first-child { margin-top: 1px; }
+.infoRow label {
+  width: 70px;
+  flex-shrink: 0;
+  color: #555;
+  font-size: 0.8rem;
+}
+.infoRow > span:last-child {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.timeAdjustRow { align-items: stretch; }
+.timeAdjustColumn { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.timeDisplay { display: flex; align-items: center; gap: 8px; }
+.timeDisplay label { align-self: flex-start; margin-top: 1px;}
+.timeAdjustControls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* Reduced gap between groups */
+}
+.timeAdjustGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.timeAdjustGroup label { font-size: 0.75rem; width: 40px; }
+.timeAdjustGroup > div { display: flex; gap: 4px; }
+.timeAdjustGroup button { font-size: 0.75rem; padding: 2px 8px; }
+
+@media(min-width: 600px) {
+    .timeAdjustControls {
+        flex-direction: row;
+        gap: 12px;
+    }
+}
+
+
+/* Actions */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* Common button styles */
+button {
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #f0f0f0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: #333;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+button:hover { background-color: #e0e0e0; }
+.iconButton { padding: 8px; font-size: 0.8rem; }
+.deleteButton { color: #d32f2f; }
+
+/* FAB */
+.fab {
+  font-size: 1.75rem;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: #333;
+  color: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.noReminders, .loading { text-align: center; color: #777; padding: 24px 0; }

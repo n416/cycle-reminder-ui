@@ -23,23 +23,19 @@ import AddLinkIcon from '@mui/icons-material/AddLink';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { Link } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/app/hooks';
-import { fetchServers, selectAllServers, getServersStatus, getLastFetched, Server } from './serversSlice'; // Server型をインポート
+import { fetchServers, selectAllServers, getServersStatus, Server } from './serversSlice'; // Server型をインポート
 import { selectUserRole } from '@/features/auth/authSlice';
 import { ServerSettingsModal } from './ServerSettingsModal'; // ★★★ 新しいモーダルをインポート ★★★
 
 const OAUTH_URL = `https://discord.com/api/oauth2/authorize?client_id=${import.meta.env.VITE_DISCORD_CLIENT_ID}&permissions=268435456&scope=bot%20applications.commands`;
 
-// ★★★ サーバーアイコンの表示ロジックを更新 ★★★
 const getServerIconUrl = (server: Server): string | null => {
-  // カスタムアイコンが設定されていればそれを優先
   if (server.customIcon) {
     return server.customIcon;
   }
-  // Discordのアイコンがあればそれを表示
   if (server.icon) {
     return `https://cdn.discordapp.com/icons/${server.id}/${server.icon}.png`;
   }
-  // どちらもなければ null
   return null;
 };
 
@@ -70,13 +66,10 @@ const ServerListSection = ({ title, servers, onSettingsClick, userRole }: Server
 
                     <ListItemButton component={Link} to={`/servers/${server.id}`} sx={{ flexGrow: 1, p: 1, borderRadius: 1 }}>
                       <ListItemAvatar>
-                        {/* ★★★ 表示ロジックを更新 ★★★ */}
                         <Avatar src={getServerIconUrl(server) || undefined}>
-                          {/* カスタム名があればそれを、なければDiscordの名前の頭文字を表示 */}
                           {(server.customName || server.name).charAt(0)}
                         </Avatar>
                       </ListItemAvatar>
-                      {/* ★★★ 表示ロジックを更新 ★★★ */}
                       <ListItemText primary={server.customName || server.name} />
                     </ListItemButton>
 
@@ -86,14 +79,12 @@ const ServerListSection = ({ title, servers, onSettingsClick, userRole }: Server
                         color={server.isAdded ? "success" : "default"}
                         size="small"
                       />
-                      {/* ★★★ 設定ボタンの表示条件（管理者のみ）は変更なし ★★★ */}
                       {server.role === 'admin' && server.isAdded && (userRole === 'owner' || userRole === 'tester') && (
                         <IconButton edge="end" aria-label="settings" onClick={() => onSettingsClick(server)}>
                           <SettingsIcon />
                         </IconButton>
                       )}
 
-                      {/* Bot導入ボタンのロジックは変更なし */}
                       {server.role === 'admin' && !server.isAdded && (userRole === 'owner' || userRole === 'tester') && (
                         <Button
                           variant="outlined"
@@ -123,13 +114,11 @@ export const ServerList = () => {
   const dispatch = useAppDispatch();
   const servers = useAppSelector(selectAllServers);
   const serversStatus = useAppSelector(getServersStatus);
-  const lastFetched = useAppSelector(getLastFetched);
   const error = useAppSelector(state => state.servers.error);
   const userRole = useAppSelector(selectUserRole);
 
   const [showOnlyAdded, setShowOnlyAdded] = useLocalStorage('showOnlyAddedServers', false);
 
-  // ★★★ 古いパスワードモーダル用の state を、新しい設定モーダル用に変更 ★★★
   const [settingsServer, setSettingsServer] = useState<Server | null>(null);
 
   useEffect(() => {
@@ -138,15 +127,9 @@ export const ServerList = () => {
     }
   }, [userRole, setShowOnlyAdded]);
 
-  useEffect(() => {
-    const CACHE_DURATION = 5 * 60 * 1000;
-    const now = Date.now();
-    if (serversStatus !== 'loading') {
-      if (!lastFetched || (now - lastFetched > CACHE_DURATION)) {
-        dispatch(fetchServers());
-      }
-    }
-  }, [dispatch, lastFetched, serversStatus]);
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  // サーバーリストの読み込みロジックを削除
+  // ★★★★★ ここまで ★★★★★
 
   const handleRefresh = () => {
     dispatch(fetchServers());
@@ -159,7 +142,6 @@ export const ServerList = () => {
   const adminServers = filteredByAdded.filter(server => server.role === 'admin');
   const memberServers = filteredByAdded.filter(server => server.role === 'member');
 
-  // ★★★ モーダルを開閉するハンドラ ★★★
   const handleOpenSettings = (server: Server) => setSettingsServer(server);
   const handleCloseSettings = () => setSettingsServer(null);
 
@@ -178,7 +160,6 @@ export const ServerList = () => {
   } else if (serversStatus === 'succeeded' && servers.length === 0) {
     content = <Typography sx={{ mt: 4, textAlign: 'center' }}>参加しているDiscordサーバーが見つかりませんでした。</Typography>;
   } else {
-    // データ取得前 or 失敗したがキャッシュはある場合など
     content = <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
   }
 
@@ -205,7 +186,6 @@ export const ServerList = () => {
 
       {content}
 
-      {/* ★★★ 古いパスワードモーダルを削除し、新しい設定モーダルに差し替え ★★★ */}
       <ServerSettingsModal
         open={!!settingsServer}
         onClose={handleCloseSettings}

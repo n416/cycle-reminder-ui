@@ -10,19 +10,18 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import TonalityIcon from '@mui/icons-material/Tonality';
 import CreditCardOffIcon from '@mui/icons-material/CreditCardOff';
-// ★★★★★ ここからが修正箇所です ★★★★★
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium'; // オーナー用
 import HandshakeIcon from '@mui/icons-material/Handshake'; // サポーター用
 import ScienceIcon from '@mui/icons-material/Science'; // テスター用
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // 不明用
-// ★★★★★ ここまで ★★★★★
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // ★ useEffect をインポート
 import { Outlet, useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { clearWriteTokens, selectUserRole, setUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import { useColorMode } from './ThemeRegistry';
 import apiClient from '@/api/client';
+import { fetchServers } from '@/features/servers/serversSlice'; // ★ fetchServers をインポート
 
 export const Layout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -32,6 +31,21 @@ export const Layout = () => {
   const theme = useTheme();
   const colorMode = useColorMode();
   const userRole = useAppSelector(selectUserRole);
+
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const serversStatus = useAppSelector((state) => state.servers.status);
+  const lastFetched = useAppSelector((state) => state.servers.lastFetched);
+
+  useEffect(() => {
+    const CACHE_DURATION = 5 * 60 * 1000; // 5分
+    const now = Date.now();
+    if (serversStatus !== 'loading') {
+      if (!lastFetched || now - lastFetched > CACHE_DURATION) {
+        dispatch(fetchServers());
+      }
+    }
+  }, [dispatch, serversStatus, lastFetched]);
+  // ★★★★★ ここまで ★★★★★
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -69,18 +83,15 @@ export const Layout = () => {
     return <Brightness4Icon />;
   };
 
-  // ★★★★★ ここからが修正箇所です ★★★★★
   const roleInfo = {
     owner: { label: 'オーナー', icon: <WorkspacePremiumIcon sx={{ color: '#FFD700' }} /> },
     supporter: { label: 'サポーター', icon: <HandshakeIcon color="info" /> },
     tester: { label: 'テスター', icon: <ScienceIcon color="warning" /> },
     unknown: { label: '不明', icon: <HelpOutlineIcon color="disabled" /> },
   };
-  // ★★★★★ ここまで ★★★★★
 
   const drawer = (
     <Box sx={{ width: 250 }} role="presentation">
-      {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
       <List>
         <ListItem>
             <ListItemIcon sx={{ minWidth: 40 }}>
@@ -94,7 +105,6 @@ export const Layout = () => {
         </ListItem>
       </List>
       <Divider />
-      {/* ★★★★★ ここまで ★★★★★ */}
       <List>
         <ListItem disablePadding>
           <ListItemButton onClick={() => handleNavigation('/servers')}>
@@ -151,7 +161,7 @@ export const Layout = () => {
           {drawer}
         </Drawer>
 
-        <Box component="main" sx={{ flexGrow: 1, p: 3, width: '100%' }}>
+        <Box component="main" sx={{ flexGrow: 1, p: { xs: 1, sm: 3 }, width: '100%' }}>
           <Toolbar />
           <Outlet />
         </Box>

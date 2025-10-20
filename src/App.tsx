@@ -27,15 +27,15 @@ function App() {
     }
   }, [dispatch]);
 
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const containerStyles = { px: { xs: 1, sm: 2 } };
+
   return (
     <>
       <CssBaseline />
       <Toast />
       <SessionExpiredDialog />
       <Routes>
-        {/* ★ デバッグ用ルート */}
-        <Route path="/ping" element={<h1>Pong! Page is working.</h1>} />
-
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/subscribe" element={<SubscriptionPage />} />
@@ -44,15 +44,16 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/" element={<Navigate to="/servers" replace />} />
-            <Route path="/servers" element={<Container maxWidth="md"><ServerList /></Container>} />
-            <Route path="/servers/:serverId" element={<Container maxWidth="md"><ReminderList /></Container>} />
-            <Route path="/servers/:serverId/add" element={<Container maxWidth="md"><AddReminderForm /></Container>} />
-            <Route path="/servers/:serverId/log" element={<Container maxWidth="md"><AuditLogView /></Container>} />
+            <Route path="/servers" element={<Container maxWidth="md" sx={containerStyles}><ServerList /></Container>} />
+            <Route path="/servers/:serverId" element={<Container maxWidth="md" sx={containerStyles}><ReminderList /></Container>} />
+            <Route path="/servers/:serverId/add" element={<Container maxWidth="md" sx={containerStyles}><AddReminderForm /></Container>} />
+            <Route path="/servers/:serverId/log" element={<Container maxWidth="md" sx={containerStyles}><AuditLogView /></Container>} />
           </Route>
         </Route>
       </Routes>
     </>
   );
+  // ★★★★★ ここまで ★★★★★
 }
 
 export default App;
