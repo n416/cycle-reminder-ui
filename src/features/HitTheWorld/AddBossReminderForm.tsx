@@ -45,11 +45,13 @@ export const AddBossReminderForm: React.FC = () => {
   }, [serverId, channels, dispatch]);
 
   const [messageType, setMessageType] = useState<'preset' | 'manual'>('preset');
-  const [presetMessage, setPresetMessage] = useState<string>(bossOptions[0].name);
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const [presetMessage, setPresetMessage] = useState<string>(`${bossOptions[0].group} ${bossOptions[0].name}`);
+  // ★★★★★ ここまで ★★★★★
   const [manualMessage, setManualMessage] = useState<string>('');
   const [channelId, setChannelId] = useState('');
   const [startTime, setStartTime] = useState('');
-  
+
   const [offsets, setOffsets] = useState('60, 10, 0');
 
   const recurrenceType = 'interval';
@@ -74,9 +76,9 @@ export const AddBossReminderForm: React.FC = () => {
 
     const finalMessage = messageType === 'preset' ? presetMessage : manualMessage;
     if (!finalMessage || !channelId || !startTime || !serverId) {
-        dispatch(showToast({ message: 'すべての項目を入力してください。', severity: 'warning' }));
-        setIsSubmitting(false);
-        return;
+      dispatch(showToast({ message: 'すべての項目を入力してください。', severity: 'warning' }));
+      setIsSubmitting(false);
+      return;
     }
 
     const parsedOffsets = offsets
@@ -134,11 +136,13 @@ export const AddBossReminderForm: React.FC = () => {
                 label="定型ボス名"
                 onChange={(e) => setPresetMessage(e.target.value)}
               >
+                {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
                 {bossOptions.map((boss) => (
-                  <MenuItem key={boss.name} value={boss.name}>
-                     {boss.group} {boss.name}
+                  <MenuItem key={boss.name} value={`${boss.group} ${boss.name}`}>
+                    {boss.group} {boss.name}
                   </MenuItem>
                 ))}
+                {/* ★★★★★ ここまで ★★★★★ */}
               </Select>
             </FormControl>
           )}
@@ -203,11 +207,11 @@ export const AddBossReminderForm: React.FC = () => {
           />
 
           <Paper variant="outlined" sx={{ p: 2 }}>
-             <Typography variant="body2" color="text.secondary">サイクル: 時間間隔 ({intervalHours}時間ごと)</Typography>
+            <Typography variant="body2" color="text.secondary">サイクル: 時間間隔 ({intervalHours}時間ごと)</Typography>
           </Paper>
 
           <Divider sx={{ pt: 1 }} />
-          
+
           <Stack direction="row" spacing={2} justifyContent="flex-end">
             <Button variant="text" onClick={() => navigate(`/servers/${serverId}`)} disabled={isSubmitting}>
               キャンセル

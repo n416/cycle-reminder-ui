@@ -369,6 +369,13 @@ export const ReminderList = () => {
         const isEditing = editingId === reminder.id;
         const isPaused = reminder.status === 'paused';
 
+        // ★★★ ここからが修正箇所です ★★★
+        const displayMessage = reminder.message
+          .replace(/\{\{offset\}\}/g, '')
+          .replace(/\{\{all\}\}/g, 'スケジュールすべて')
+          .trim();
+        // ★★★ ここまで ★★★
+
         return (
           <Accordion key={reminder.id} id={`reminder-${reminder.id}`} TransitionProps={{ unmountOnExit: true }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -379,7 +386,7 @@ export const ReminderList = () => {
                   <SpeakerNotesIcon color="action" />
                 )}
                 <Typography noWrap sx={{ flexGrow: 1, textDecoration: isPaused ? 'line-through' : 'none', color: isPaused ? 'text.disabled' : 'text.primary' }}>
-                  {reminder.message.split('\n')[0]}
+                  {displayMessage.split('\n')[0]} {/* ★★★ 修正 ★★★ */}
                 </Typography>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary', mr: 2 }}>
                   <EventAvailableIcon fontSize="small" />
@@ -394,7 +401,7 @@ export const ReminderList = () => {
                 <Stack spacing={2}>
                   <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                     <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {reminder.message}
+                      {displayMessage} {/* ★★★ 修正 ★★★ */}
                     </Typography>
                   </Box>
                   <Divider />

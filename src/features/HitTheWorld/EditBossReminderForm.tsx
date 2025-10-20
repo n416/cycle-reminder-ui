@@ -48,10 +48,26 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
   }, [reminder.serverId, channels, dispatch]);
 
   const messageWithoutOffset = reminder.message.replace('{{offset}}', '').trim();
-  const isPreset = bossOptions.some(boss => boss.name === messageWithoutOffset);
-  
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const isPreset = bossOptions.some(boss => 
+    `${boss.group} ${boss.name}` === messageWithoutOffset || boss.name === messageWithoutOffset
+  );
+
   const [messageType, setMessageType] = useState<'preset' | 'manual'>(isPreset ? 'preset' : 'manual');
-  const [presetMessage, setPresetMessage] = useState<string>(isPreset ? messageWithoutOffset : bossOptions[0].name);
+  
+  // isPresetがtrueの場合、古い形式・新しい形式どちらであっても新しい形式に正規化してstateを初期化する
+  const getInitialPresetMessage = () => {
+    if (isPreset) {
+      const foundBoss = bossOptions.find(boss => 
+        `${boss.group} ${boss.name}` === messageWithoutOffset || boss.name === messageWithoutOffset
+      );
+      return foundBoss ? `${foundBoss.group} ${foundBoss.name}` : `${bossOptions[0].group} ${bossOptions[0].name}`;
+    }
+    return `${bossOptions[0].group} ${bossOptions[0].name}`;
+  };
+
+  const [presetMessage, setPresetMessage] = useState<string>(getInitialPresetMessage());
+  // ★★★★★ ここまで ★★★★★
   const [manualMessage, setManualMessage] = useState<string>(isPreset ? '' : messageWithoutOffset);
   const [channelId, setChannelId] = useState(reminder.channelId);
 
@@ -135,11 +151,13 @@ export const EditBossReminderForm: React.FC<EditBossReminderFormProps> = ({ remi
                 label="定型ボス名"
                 onChange={(e) => setPresetMessage(e.target.value)}
               >
+                {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
                 {bossOptions.map((boss) => (
-                  <MenuItem key={boss.name} value={boss.name}>
+                  <MenuItem key={boss.name} value={`${boss.group} ${boss.name}`}>
                     {boss.group} {boss.name}
                   </MenuItem>
                 ))}
+                {/* ★★★★★ ここまで ★★★★★ */}
               </Select>
             </FormControl>
           )}

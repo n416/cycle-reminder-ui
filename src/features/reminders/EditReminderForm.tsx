@@ -9,12 +9,25 @@ interface EditReminderFormProps {
   onCancel: () => void;
 }
 
-// ボス名の定型リスト（編集フォームでも種類判別に使う）
-const bossNames = [
-  'スケロ (墓地2F)', 'リセメン (墓地3F)', 'ユリア (墓地4F)',
-  'グレゴ (啓示3F)', 'ケンタ (啓示5F)',
-  'アルサ (黎明2F)', 'アズラエル (黎明5F)'
+// ★★★★★ ここからが修正箇所です ★★★★★
+// ボス名の定型リスト（Add/Editフォームと統一）
+const bossOptions = [
+  { group: '墓地', name: '2F） スケロ' },
+  { group: '墓地', name: '3F） リセメン' },
+  { group: '墓地', name: '4F） ユリア' },
+  { group: '啓示', name: '3F） グレゴ' },
+  { group: '啓示', name: '5F） ケンタ' },
+  { group: '黎明', name: '2F） アルサ' },
+  { group: '黎明', name: '5F） アズラエル' },
 ];
+
+// 判別用に、古い形式と新しい形式のボス名を両方含むリストを生成
+const bossNamesForCheck = bossOptions.flatMap(boss => [
+  boss.name, // 古い形式 (例: "5F） ケンタ")
+  `${boss.group} ${boss.name}` // 新しい形式 (例: "啓示 5F） ケンタ")
+]);
+// ★★★★★ ここまで ★★★★★
+
 
 export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, onCancel }) => {
   // サーバー種別を取得
@@ -26,7 +39,10 @@ export const EditReminderForm: React.FC<EditReminderFormProps> = ({ reminder, on
   let isBossReminder = false;
   if (isHitServer) {
     // HITサーバーの場合、メッセージ内容とサイクルでボスリマインダーかを判定
-    const isPresetBossName = bossNames.includes(reminder.message);
+    // ★★★★★ ここからが修正箇所です ★★★★★
+    const messageWithoutOffset = reminder.message.replace('{{offset}}', '').trim();
+    const isPresetBossName = bossNamesForCheck.includes(messageWithoutOffset);
+    // ★★★★★ ここまで ★★★★★
     const isBossCycle = reminder.recurrence.type === 'interval' && reminder.recurrence.hours === 20;
 
     // 定型ボス名、またはサイクルが20時間間隔であればボスリマインダーとみなす
