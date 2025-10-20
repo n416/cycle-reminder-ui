@@ -15,7 +15,8 @@ import { SubscriptionPage } from '@/pages/SubscriptionPage';
 import { PaymentSuccessPage } from '@/pages/PaymentSuccessPage';
 import { PaymentCancelPage } from '@/pages/PaymentCancelPage';
 import { Toast } from '@/features/toast/Toast';
-import { SessionExpiredDialog } from '@/features/session/SessionExpiredDialog'; // ★ インポート
+import { SessionExpiredDialog } from '@/features/session/SessionExpiredDialog';
+import { SupporterView } from '@/features/supporters/SupporterView';
 
 function App() {
   const dispatch = useAppDispatch();
@@ -27,7 +28,6 @@ function App() {
     }
   }, [dispatch]);
 
-  // ★★★★★ ここからが修正箇所です ★★★★★
   const containerStyles = { px: { xs: 1, sm: 2 } };
 
   return (
@@ -42,6 +42,7 @@ function App() {
         <Route path="/payment/success" element={<PaymentSuccessPage />} />
         <Route path="/payment/cancel" element={<PaymentCancelPage />} />
         <Route element={<ProtectedRoute />}>
+          {/* 通常のレイアウト */}
           <Route element={<Layout />}>
             <Route path="/" element={<Navigate to="/servers" replace />} />
             <Route path="/servers" element={<Container maxWidth="md" sx={containerStyles}><ServerList /></Container>} />
@@ -49,11 +50,16 @@ function App() {
             <Route path="/servers/:serverId/add" element={<Container maxWidth="md" sx={containerStyles}><AddReminderForm /></Container>} />
             <Route path="/servers/:serverId/log" element={<Container maxWidth="md" sx={containerStyles}><AuditLogView /></Container>} />
           </Route>
+          
+          {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+          {/* サポーター専用のルートを複数形に修正 */}
+          <Route path="/supporters/:serverId" element={<SupporterView />} />
+          {/* ★★★★★ ここまで ★★★★★ */}
+
         </Route>
       </Routes>
     </>
   );
-  // ★★★★★ ここまで ★★★★★
 }
 
 export default App;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
 import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder } from './remindersSlice.ts';
 import { selectAllServers, getServersStatus, Server } from '@/features/servers/serversSlice';
-import { selectWriteTokenForServer, setWriteToken, selectUserRole } from '@/features/auth/authSlice';
+import { selectWriteTokenForServer, selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import { MissedNotifications } from '../missed-notifications/MissedNotifications.tsx';
 import {
@@ -22,12 +22,6 @@ import {
   ListItemText,
   IconButton,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  TextField,
-  DialogActions,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -43,16 +37,12 @@ import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SendIcon from '@mui/icons-material/Send';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
-import LockOpenIcon from '@mui/icons-material/LockOpen';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { EditReminderForm } from './EditReminderForm.tsx';
 import apiClient from '@/api/client';
 import { ServerSettingsModal } from '../servers/ServerSettingsModal';
-import { AddReminderTypeModal } from '../HitTheWorld/AddReminderTypeModal';
-import { AddDailySummaryCard } from './AddDailySummaryCard';
-import { DailySummaryDialog } from './DailySummaryDialog';
 
 const getServerIconUrl = (server: Server): string | null => {
   if (server.customIcon) {
@@ -167,7 +157,6 @@ export const ReminderList = () => {
   const { serverId } = useParams<{ serverId: string }>();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const reminders = useAppSelector(selectAllReminders);
   const remindersStatus = useAppSelector(getRemindersStatus);
@@ -192,18 +181,9 @@ export const ReminderList = () => {
   const [currentReminderId, setCurrentReminderId] = useState<null | string>(null);
   const isMenuOpen = Boolean(menuAnchorEl);
   // ★★★★★ ここまで ★★★★★
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [isUnlocking, setIsUnlocking] = useState(false);
-
   const serverName = currentServer?.customName || currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
-  const isHitServer = currentServer?.serverType === 'hit_the_world';
-  const hasDailySummaryReminder = reminders.some(r => r.message.includes('{{all}}'));
-  const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSummaryDialogOpen, setSummaryDialogOpen] = useState(false);
 
   useEffect(() => {
     if (serverId) {

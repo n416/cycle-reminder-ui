@@ -14,36 +14,38 @@ export const AuthCallbackPage = () => {
   useEffect(() => {
     const token = searchParams.get('token');
     const roleIntent = searchParams.get('role_intent');
+    const redirectPath = searchParams.get('redirectPath'); // ★★★ リダイレクトパスを受け取る ★★★
 
     if (!token) {
       navigate('/login', { replace: true });
       return;
     }
 
-    // 1. まずトークンを保存する
     localStorage.setItem('auth-token', token);
 
-    // 2. サーバーに本当の役割を問い合わせてから、ナビゲーションを決定する
     const verifyRoleAndNavigate = async () => {
-        try {
-            // axiosのインターセプターが、保存したばかりのトークンを使ってくれる
-            const response = await apiClient.get('/auth/status');
-            const actualRole = response.data.role as UserRole;
+      try {
+        const response = await apiClient.get('/auth/status');
+        const actualRole = response.data.role as UserRole;
 
-            // 3. Reduxストア（アプリ全体の状態）も更新する
-            dispatch(setUserRole(actualRole));
+        dispatch(setUserRole(actualRole));
 
-            // 4. 意図と実際の役割を比較して、正しいページへ移動する
-            if (roleIntent === 'owner' && actualRole === 'supporter') {
-                navigate('/subscribe', { replace: true });
-            } else {
-                navigate('/servers', { replace: true });
-            }
-        } catch (error) {
-            console.error("Failed to verify user status, redirecting to login.", error);
-            // サーバーとの通信に失敗した場合は、安全のためログインページに戻す
-            navigate('/login', { replace: true });
+        // ★★★★★ ここからが修正箇所です ★★★★★
+        if (roleIntent === 'owner' && actualRole === 'supporter') {
+          navigate('/subscribe', { replace: true });
+        } else if (redirectPath) {
+          // リダイレクトパスがあればそこへ移動
+          navigate(decodeURIComponent(redirectPath), { replace: true });
         }
+        else {
+          // なければデフォルトの /servers へ
+          navigate('/servers', { replace: true });
+        }
+        // ★★★★★ ここまで ★★★★★
+      } catch (error) {
+        console.error("Failed to verify user status, redirecting to login.", error);
+        navigate('/login', { replace: true });
+      }
     };
 
     verifyRoleAndNavigate();

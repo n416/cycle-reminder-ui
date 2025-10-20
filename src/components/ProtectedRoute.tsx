@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAppSelector } from '@/app/hooks';
 import { selectUserRole } from '@/features/auth/authSlice';
 import { Box, CircularProgress } from '@mui/material';
@@ -21,22 +21,19 @@ const isAuthenticated = () => {
 };
 
 export const ProtectedRoute = () => {
-  console.log("【Debug】2. ProtectedRoute component is rendering."); // ★ デバッグログ
   const userRole = useAppSelector(selectUserRole);
-  console.log(`【Debug】ProtectedRoute: Current userRole is '${userRole}'.`); // ★ デバッグログ
+  const location = useLocation(); // ★★★ 現在のURL情報を取得 ★★★
 
   if (!isAuthenticated()) {
-    console.log("【Debug】ProtectedRoute: Not authenticated. Redirecting to /login."); // ★ デバッグログ
-    return <Navigate to="/login" />;
+    // ★★★ ログインページにリダイレクトする際、現在のURLを `state` として渡す ★★★
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // 役割情報がまだ読み込まれていない場合
   if (userRole === 'unknown') {
-    console.log("【Debug】ProtectedRoute: userRole is 'unknown'. Showing spinner."); // ★ デバッグログ
     return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><CircularProgress /></Box>;
   }
 
   // ログイン済みであればコンテンツを表示
-  console.log("【Debug】ProtectedRoute: Authenticated and role is known. Rendering Outlet."); // ★ デバッグログ
   return <Outlet />;
 };
