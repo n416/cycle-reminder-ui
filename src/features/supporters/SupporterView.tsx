@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/app/hooks';
 import { fetchReminders, selectAllReminders, updateExistingReminder, Reminder } from '@/features/reminders/remindersSlice';
@@ -7,20 +7,22 @@ import { logout, selectUserRole, selectWriteTokenForServer, setWriteToken } from
 import { showToast } from '@/features/toast/toastSlice';
 import {
   Box, Container, Typography, Paper, Stack, Button, CircularProgress, AppBar, Toolbar, IconButton,
-  Dialog, DialogTitle, DialogContent, DialogContentText, TextField, DialogActions, useTheme, useMediaQuery
+  Dialog, DialogTitle, DialogContent, DialogContentText, TextField, DialogActions, useTheme, useMediaQuery,
+  MobileStepper, FormControlLabel, Checkbox
 } from '@mui/material';
+import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import apiClient from '@/api/client';
 import Clock from 'react-clock';
 import 'react-clock/dist/Clock.css';
 import '../reminders/Clock.css';
-// ★★★★★ ここから追加 ★★★★★
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import TonalityIcon from '@mui/icons-material/Tonality';
 import { useColorMode } from '@/components/ThemeRegistry';
-// ★★★★★ ここまで追加 ★★★★★
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import useLocalStorage from '@/hooks/useLocalStorage';
 
 
 // ボスリマインダーかどうかを判定するロジック
@@ -44,6 +46,35 @@ const toLocalISOString = (date: Date): string => {
   return localISOTime;
 };
 
+const helpSteps = [
+  {
+    label: 'STEP1：討伐直後の更新',
+    description: `ボスを討伐した直後であれば、このボタンを押すのが最も簡単です。現在の時刻で討伐日時が記録されます。`,
+    button: <Button size="small" variant="contained" color="warning">NOW!!</Button>
+  },
+  {
+    label: 'STEP2：後から時間を入力する場合',
+    description: `後から時間を入力する場合は、このボタンから正確な討伐日時を入力してください。`,
+    button: <Button size="small" variant="contained">マニュアル入力</Button>
+  },
+    {
+    label: 'STEP3：時刻の微調整',
+    description: `入力した時刻を少しだけ修正したい場合は、これらのボタンで1分、5分、10分単位の調整ができます。`,
+    button: (
+        <Stack direction="row" spacing={1}>
+            <Button size="small" variant="contained">1分</Button>
+            <Button size="small" variant="contained">5分</Button>
+            <Button size="small" variant="contained">10分</Button>
+        </Stack>
+    )
+  },
+  {
+    label: '【重要】よくある勘違い',
+    description: `時刻をN分前にずらして入力する必要はありません！ このアプリは、入力された「討伐時刻」を元に、指定されたN分前に自動で通知を送ります。`,
+    isImportant: true,
+  },
+];
+
 
 export const SupporterView = () => {
   const { serverId } = useParams<{ serverId: string }>();
@@ -51,7 +82,7 @@ export const SupporterView = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
-  const colorMode = useColorMode(); // ★★★★★ colorModeフックを呼び出し
+  const colorMode = useColorMode(); 
 
 
   // Reduxストアから必要なデータを取得
@@ -75,6 +106,22 @@ export const SupporterView = () => {
   const [manualTime, setManualTime] = useState('');
   const [nowConfirmReminder, setNowConfirmReminder] = useState<Reminder | null>(null);
   const [manualTimeValue, setManualTimeValue] = useState<Date | null>(null);
+  
+  const [isHelpOpen, setIsHelpOpen] = useState(false); 
+  const [activeHelpStep, setActiveHelpStep] = useState(0); 
+  const [showHelpOnLoad, setShowHelpOnLoad] = useLocalStorage('supporter-help-on-load', true);
+  const hasShownHelp = useRef(false);
+  
+  const canView = isAuthChecked && userRole === 'supporter' && currentServer?.serverType === 'hit_the_world' && !!writeToken;
+
+  useEffect(() => {
+    // 認証完了後、まだ表示しておらず、かつユーザーが表示を望んでいる場合に一度だけ表示
+    if (canView && showHelpOnLoad && !hasShownHelp.current) {
+        setIsHelpOpen(true);
+        hasShownHelp.current = true;
+    }
+  }, [canView, showHelpOnLoad]);
+
 
   useEffect(() => {
     try {
@@ -241,7 +288,6 @@ export const SupporterView = () => {
     return clocks;
   };
 
-  // ★★★★★ ここから追加 ★★★★★
   const renderThemeIcon = () => {
     if (colorMode.mode === 'auto') {
       return <TonalityIcon />;
@@ -251,11 +297,15 @@ export const SupporterView = () => {
     }
     return <Brightness4Icon />;
   };
-  // ★★★★★ ここまで追加 ★★★★★
 
   const bossReminders = reminders.filter(isBossReminder);
-  const canView = isAuthChecked && userRole === 'supporter' && currentServer?.serverType === 'hit_the_world' && !!writeToken;
-
+  
+  const handleHelpNext = () => setActiveHelpStep((prev) => prev + 1);
+  const handleHelpBack = () => setActiveHelpStep((prev) => prev - 1);
+  const handleHelpClose = () => {
+    setIsHelpOpen(false);
+    setActiveHelpStep(0);
+  }
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -263,12 +313,13 @@ export const SupporterView = () => {
         <Toolbar>
           <AccessTimeIcon sx={{ mr: 2 }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>時刻更新モード</Typography>
-          {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+          <IconButton sx={{ ml: 1 }} onClick={() => setIsHelpOpen(true)} color="inherit">
+            <HelpOutlineIcon />
+          </IconButton>
           <IconButton sx={{ ml: 1 }} onClick={colorMode.toggleColorMode} color="inherit">
             {renderThemeIcon()}
           </IconButton>
           <IconButton color="inherit" onClick={handleLogout} aria-label="ログアウト"><LogoutIcon /></IconButton>
-          {/* ★★★★★ ここまで修正 ★★★★★ */}
         </Toolbar>
       </AppBar>
 
@@ -290,8 +341,8 @@ export const SupporterView = () => {
                         <Typography variant="body2" color="text.secondary">現在の討伐日時 (起点)</Typography>
                         <Typography variant="h5" component="p">{formatStartTime(reminder.startTime)}</Typography>
                       </Box>
-                      <Stack spacing={1.5} alignItems="flex-start" sx={{ width: '100%', mt: 0 }}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 2 }}>
+                      <Stack spacing={1.5} alignItems="flex-start" sx={{ width: '100%', mt: 2 }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1.5, sm: 2 }}>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">進める</Typography>
                                 <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
@@ -301,7 +352,7 @@ export const SupporterView = () => {
                             <Box>
                                 <Typography variant="caption" color="text.secondary">戻す</Typography>
                                 <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                                    {[-1, -5, -10].map(min => <Button key={`back-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{Math.abs(min)}分</Button>)}
+                                    {[-1, -5, 10].map(min => <Button key={`back-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{Math.abs(min)}分</Button>)}
                                 </Stack>
                             </Box>
                         </Stack>
@@ -380,6 +431,67 @@ export const SupporterView = () => {
           <Button onClick={handleNowSubmit} color="warning" variant="contained">OK</Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog open={isHelpOpen} onClose={handleHelpClose} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ textAlign: 'left' }}>{helpSteps[activeHelpStep].label}</DialogTitle>
+        <DialogContent>
+            <Stack spacing={2} sx={{ pt: 1, minHeight: 180, alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                <Typography 
+                    variant="body1" 
+                    color={helpSteps[activeHelpStep].isImportant ? "error.main" : "text.primary"}
+                    sx={{ textAlign: 'left' }}
+                >
+                    {helpSteps[activeHelpStep].description}
+                </Typography>
+                {helpSteps[activeHelpStep].button && (
+                    <Paper 
+                        elevation={4} 
+                        sx={{ 
+                            p: 2, 
+                            borderRadius: 0,
+                            boxShadow: theme.shadows[0]
+                        }}
+                    >
+                        {helpSteps[activeHelpStep].button}
+                    </Paper>
+                )}
+            </Stack>
+        </DialogContent>
+        <MobileStepper
+            variant="dots"
+            steps={helpSteps.length}
+            position="static"
+            activeStep={activeHelpStep}
+            sx={{ flexGrow: 1, pb: 1 }}
+            nextButton={
+                <Button size="small" onClick={handleHelpNext} disabled={activeHelpStep === helpSteps.length - 1}>
+                    次へ
+                    <KeyboardArrowRight />
+                </Button>
+            }
+            backButton={
+                <Button size="small" onClick={handleHelpBack} disabled={activeHelpStep === 0}>
+                    <KeyboardArrowLeft />
+                    戻る
+                </Button>
+            }
+        />
+        {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+        <DialogActions sx={{ justifyContent: 'space-between', p: 2, pt: 0 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!showHelpOnLoad}
+                onChange={(e) => setShowHelpOnLoad(!e.target.checked)}
+              />
+            }
+            label="次から表示しない"
+          />
+          <Button onClick={handleHelpClose}>閉じる</Button>
+        </DialogActions>
+        {/* ★★★★★ ここまで修正 ★★★★★ */}
+      </Dialog>
+
     </Box>
   );
 };
