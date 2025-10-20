@@ -2,14 +2,18 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
   Stack, Box, Tabs, Tab, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio,
-  Typography
+  Typography, Divider, InputAdornment, IconButton, Tooltip, FormHelperText,
+  Paper // ★★★★★ ここに Paper を追加 ★★★★★
 } from '@mui/material';
 import { useAppDispatch } from '@/app/hooks';
 import { Server, updateServerSettings, updateServerPassword } from './serversSlice';
 import { showToast } from '@/features/toast/toastSlice';
-import SaveIcon from '@mui/icons-material/Save'; // ★ Safelistedを削除しました
+import SaveIcon from '@mui/icons-material/Save';
 import LockIcon from '@mui/icons-material/Lock';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { QRCodeSVG } from 'qrcode.react';
+
 
 interface ServerSettingsModalProps {
   open: boolean;
@@ -21,7 +25,6 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ open, 
   const dispatch = useAppDispatch();
   const [activeTab, setActiveTab] = useState(0);
 
-  // ★★★ isSaving 状態を追加 ★★★
   const [isSaving, setIsSaving] = useState(false);
 
   // General Settings
@@ -31,27 +34,34 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ open, 
 
   // Security Settings
   const [newPassword, setNewPassword] = useState('');
+  
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // モーダルが開かれたとき、または表示対象のサーバーが変わったときに初期値を設定
     if (server) {
       setCustomName(server.customName || '');
       setCustomIcon(server.customIcon || '');
       setServerType(server.serverType || 'normal');
-      setNewPassword(''); // パスワードフィールドは毎回クリア
+      setNewPassword('');
     }
-    // タブも常に「全般」に戻す
     setActiveTab(0);
-    setIsSaving(false); // ★ モーダルが開くたびに解除
-  }, [server, open]); // ★ open も依存配列に追加
+    setIsSaving(false);
+    setCopied(false);
+  }, [server, open]);
 
   if (!server) return null;
 
+  const supporterUrl = `${window.location.origin}/hit-the-world/${server.id}/boss-time-adjustment`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(supporterUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleSaveGeneral = async () => {
-    // ★★★ 連打防止 ★★★
     if (isSaving) return;
     setIsSaving(true);
-
     try {
       await dispatch(updateServerSettings({
         serverId: server.id,
@@ -62,34 +72,30 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ open, 
         }
       })).unwrap();
       dispatch(showToast({ message: 'サーバー設定を更新しました。', severity: 'success' }));
-      onClose(); // 成功したら閉じる
+      onClose();
     } catch (err) {
       dispatch(showToast({ message: '設定の更新に失敗しました。', severity: 'error' }));
     } finally {
-      // ★★★ 解除 ★★★
       setIsSaving(false);
     }
   };
 
   const handleSavePassword = async () => {
-    // ★★★ 連打防止 ★★★
     if (isSaving) return;
     setIsSaving(true);
-
     try {
       await dispatch(updateServerPassword({ serverId: server.id, password: newPassword })).unwrap();
       dispatch(showToast({ message: 'パスワードを更新しました。', severity: 'success' }));
-      onClose(); // 成功したら閉じる
+      onClose();
     } catch (err) {
       dispatch(showToast({ message: 'パスワードの更新に失敗しました。', severity: 'error' }));
     } finally {
-      // ★★★ 解除 ★★★
       setIsSaving(false);
     }
   };
 
   return (
-    <Dialog open={open} onClose={isSaving ? () => { } : onClose} fullWidth maxWidth="sm"> {/* ★ 保存中は閉じさせない */}
+    <Dialog open={open} onClose={isSaving ? () => { } : onClose} fullWidth maxWidth="sm">
       <DialogTitle>
         「{server.customName || server.name}」の設定
       </DialogTitle>
@@ -100,7 +106,6 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ open, 
         </Tabs>
       </Box>
 
-      {/* --- 全般タブ --- */}
       {activeTab === 0 && (
         <>
           <DialogContent>
@@ -130,10 +135,46 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ open, 
                   <FormControlLabel value="hit_the_world" control={<Radio />} label="HIT : The World" />
                 </RadioGroup>
               </FormControl>
+
+              {serverType === 'hit_the_world' && (
+                <>
+                  <Divider sx={{ pt: 2 }} />
+                  <Stack spacing={2}>
+                    <Typography variant="h6">サポーター用URL</Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+                      <Box sx={{ flexGrow: 1, width: '100%' }}>
+                        <TextField
+                          label="URL"
+                          value={supporterUrl}
+                          fullWidth
+                          InputProps={{
+                            readOnly: true,
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <Tooltip title={copied ? "コピーしました！" : "コピー"}>
+                                  <IconButton onClick={handleCopy} edge="end">
+                                    <ContentCopyIcon />
+                                  </IconButton>
+                                </Tooltip>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                        <FormHelperText>
+                          サポーターにこのURLを共有すると、ボス時間の編集だけを許可できます。
+                        </FormHelperText>
+                      </Box>
+                      <Paper sx={{ p: 1, bgcolor: 'white', display: 'inline-block' }}>
+                        <QRCodeSVG value={supporterUrl} size={110} />
+                      </Paper>
+                    </Stack>
+                  </Stack>
+                </>
+              )}
+
             </Stack>
           </DialogContent>
           <DialogActions>
-            {/* ★★★ ボタンに disabled とローディング表示を追加 ★★★ */}
             <Button onClick={onClose} disabled={isSaving}>キャンセル</Button>
             <Button onClick={handleSaveGeneral} variant="contained" startIcon={<SaveIcon />} disabled={isSaving}>
               {isSaving ? '保存中...' : '設定を保存'}
@@ -142,7 +183,6 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ open, 
         </>
       )}
 
-      {/* --- セキュリティタブ --- */}
       {activeTab === 1 && (
         <>
           <DialogContent>
@@ -158,12 +198,11 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ open, 
                 onChange={(e) => setNewPassword(e.target.value)}
                 helperText="空欄で保存すると、パスワードが削除されます。"
                 fullWidth
-                onKeyDown={(e) => e.key === 'Enter' && handleSavePassword()} // ★ Enterキーでも保存できるように
+                onKeyDown={(e) => e.key === 'Enter' && handleSavePassword()}
               />
             </Stack>
           </DialogContent>
           <DialogActions>
-            {/* ★★★ ボタンに disabled とローディング表示を追加 ★★★ */}
             <Button onClick={onClose} disabled={isSaving}>キャンセル</Button>
             <Button onClick={handleSavePassword} variant="contained" startIcon={<SaveIcon />} disabled={isSaving}>
               {isSaving ? '保存中...' : 'パスワードを保存'}

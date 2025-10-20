@@ -1,20 +1,28 @@
 import React, { useState } from 'react';
-import { Box, Typography, Button, Container, Stack, Paper, Dialog, DialogTitle, DialogContent, TextField, DialogActions, DialogContentText, Link } from '@mui/material'; // ★ Link をインポート
+// ★★★★★ useLocation をインポート ★★★★★
+import { useLocation } from 'react-router-dom';
+import { Box, Typography, Button, Container, Stack, Paper, Dialog, DialogTitle, DialogContent, TextField, DialogActions, DialogContentText, Link } from '@mui/material';
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import HandshakeIcon from '@mui/icons-material/Handshake';
 import ScienceIcon from '@mui/icons-material/Science';
 import apiClient from '@/api/client';
 
 export const LoginPage = () => {
-  console.log("【Debug】LoginPage component is rendering.");
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+  
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const location = useLocation();
+  const from = location.state?.from?.pathname || '/';
+  // ★★★★★ ここまで ★★★★★
 
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleLogin = (role: 'owner' | 'supporter' | 'tester') => {
-    window.location.href = `${apiBaseUrl}/auth/discord?role=${role}`;
+    // ★★★★★ リダイレクトパスを認証URLに追加 ★★★★★
+    const redirectPath = encodeURIComponent(from);
+    window.location.href = `${apiBaseUrl}/auth/discord?role=${role}&redirectPath=${redirectPath}`;
   };
 
   const handleOpenTesterDialog = () => {

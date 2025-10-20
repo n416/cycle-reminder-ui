@@ -52,8 +52,8 @@ function App() {
           </Route>
           
           {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
-          {/* サポーター専用のルートを複数形に修正 */}
-          <Route path="/supporters/:serverId" element={<SupporterView />} />
+          {/* HIT: The World のサポーター専用ボス時刻編集ページのルート */}
+          <Route path="/hit-the-world/:serverId/boss-time-adjustment" element={<SupporterView />} />
           {/* ★★★★★ ここまで ★★★★★ */}
 
         </Route>
