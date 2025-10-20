@@ -31,4 +31,23 @@ export const darkTheme = createTheme({
       paper: '#1e1e1e', // Cardなどの背景色
     },
   },
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  components: {
+    // MuiAlertコンポーネントのスタイルを直接上書き
+    MuiAlert: {
+      styleOverrides: {
+        // filled バリアントのスタイルを定義
+        filledInfo: {
+          color: '#fff', // info（青）の文字色を白に
+        },
+        filledSuccess: {
+          color: '#fff', // success（緑）の文字色を白に
+        },
+        filledWarning: {
+          color: '#fff', // warning（オレンジ）の文字色を白に
+        },
+      },
+    },
+  },
+  // ★★★★★ ここまで ★★★★★
 });

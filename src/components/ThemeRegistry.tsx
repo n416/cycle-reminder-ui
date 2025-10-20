@@ -1,11 +1,11 @@
-import React, { createContext, useMemo, useContext } from 'react';
+import React, { createContext, useMemo, useContext, useEffect, useRef } from 'react';
 import { ThemeProvider, useMediaQuery } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { lightTheme, darkTheme } from '@/theme';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { ThemeOverrides } from './ThemeOverrides';
-import { useAppDispatch } from '@/app/hooks'; // 1. useAppDispatch をインポート
-import { showToast } from '@/features/toast/toastSlice'; // 2. showToast をインポート
+import { useAppDispatch } from '@/app/hooks'; 
+import { showToast } from '@/features/toast/toastSlice';
 
 const ColorModeContext = createContext({
   toggleColorMode: () => {},
@@ -16,26 +16,37 @@ export const useColorMode = () => useContext(ColorModeContext);
 
 export const ThemeRegistry = ({ children }: { children: React.ReactNode }) => {
   const [mode, setMode] = useLocalStorage<'auto' | 'light' | 'dark'>('themeMode', 'auto');
-  const dispatch = useAppDispatch(); // 3. dispatch関数を取得
+  const dispatch = useAppDispatch();
+  const isInitialMount = useRef(true); // 初回マウントかどうかを判定するフラグ
   
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
+
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  // mode の変更を副作用として検知し、トーストを表示する
+  useEffect(() => {
+    // 初回マウント時はトーストを表示しない
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const modeText = { auto: 'システム設定に連動', light: 'ライトモード', dark: 'ダークモード' };
+    dispatch(showToast({ message: `テーマを「${modeText[mode]}」に変更しました`, severity: 'info' }));
+  }, [mode, dispatch]); // modeが変更された時にこのeffectを実行
 
   const colorMode = useMemo(
     () => ({
       toggleColorMode: () => {
-        setMode((prevMode) => {
-          // --- ★★★ ここからトースト通知処理を追加 ★★★ ---
-          const nextMode = prevMode === 'auto' ? 'light' : prevMode === 'light' ? 'dark' : 'auto';
-          const modeText = { auto: 'システム設定に連動', light: 'ライトモード', dark: 'ダークモード' };
-          dispatch(showToast({ message: `テーマを「${modeText[nextMode]}」に変更しました`, severity: 'info' }));
-          return nextMode;
-          // --- ★★★ ここまで追加 ★★★ ---
-        });
+        // stateの更新ロジックのみに専念させる
+        setMode((prevMode) => 
+          prevMode === 'auto' ? 'light' : prevMode === 'light' ? 'dark' : 'auto'
+        );
       },
       mode,
     }),
-    [setMode, mode, dispatch],
+    [setMode, mode], // dispatchは依存配列から削除
   );
+  // ★★★★★ ここまで修正 ★★★★★
 
   const theme = useMemo(() => {
     if (mode === 'auto') {

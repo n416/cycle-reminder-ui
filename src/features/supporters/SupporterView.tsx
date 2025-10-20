@@ -7,11 +7,20 @@ import { logout, selectUserRole, selectWriteTokenForServer, setWriteToken } from
 import { showToast } from '@/features/toast/toastSlice';
 import {
   Box, Container, Typography, Paper, Stack, Button, CircularProgress, AppBar, Toolbar, IconButton,
-  Dialog, DialogTitle, DialogContent, DialogContentText, TextField, DialogActions
+  Dialog, DialogTitle, DialogContent, DialogContentText, TextField, DialogActions, useTheme, useMediaQuery
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import apiClient from '@/api/client';
+import Clock from 'react-clock';
+import 'react-clock/dist/Clock.css';
+import '../reminders/Clock.css';
+// ★★★★★ ここから追加 ★★★★★
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import TonalityIcon from '@mui/icons-material/Tonality';
+import { useColorMode } from '@/components/ThemeRegistry';
+// ★★★★★ ここまで追加 ★★★★★
 
 
 // ボスリマインダーかどうかを判定するロジック
@@ -28,10 +37,22 @@ const formatStartTime = (startTimeValue: string): string => {
   }).format(date);
 };
 
+// datetime-local input 用にDateオブジェクトをフォーマットするヘルパー関数
+const toLocalISOString = (date: Date): string => {
+  const tzoffset = date.getTimezoneOffset() * 60000;
+  const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
+  return localISOTime;
+};
+
+
 export const SupporterView = () => {
   const { serverId } = useParams<{ serverId: string }>();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const colorMode = useColorMode(); // ★★★★★ colorModeフックを呼び出し
+
 
   // Reduxストアから必要なデータを取得
   const reminders = useAppSelector(selectAllReminders);
@@ -39,9 +60,7 @@ export const SupporterView = () => {
   const remindersStatus = useAppSelector(state => state.reminders.status);
   const serversStatus = useAppSelector(getServersStatus);
   const userRole = useAppSelector(selectUserRole);
-
   const writeToken = useAppSelector(selectWriteTokenForServer(serverId!));
-
   const currentServer = servers.find(s => s.id === serverId);
 
   // パスワード認証用のState
@@ -49,39 +68,51 @@ export const SupporterView = () => {
   const [password, setPassword] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState('');
-  // ★★★★★ 認証が完了したかを管理するStateを追加 ★★★★★
   const [isAuthChecked, setIsAuthChecked] = useState(false);
+
+  // 新しいモーダル/ダイアログ用のState
+  const [manualInputReminder, setManualInputReminder] = useState<Reminder | null>(null);
+  const [manualTime, setManualTime] = useState('');
+  const [nowConfirmReminder, setNowConfirmReminder] = useState<Reminder | null>(null);
+  const [manualTimeValue, setManualTimeValue] = useState<Date | null>(null);
+
+  useEffect(() => {
+    try {
+      const date = new Date(manualTime);
+      if (!isNaN(date.getTime())) {
+        setManualTimeValue(date);
+      } else {
+        setManualTimeValue(null);
+      }
+    } catch {
+      setManualTimeValue(null);
+    }
+  }, [manualTime]);
 
 
   // 初回マウント時にサーバーリストをフェッチ
   useEffect(() => {
     if (servers.length === 0) {
-      dispatch(fetchServers());
+        dispatch(fetchServers());
     }
   }, [dispatch, servers.length]);
 
   // このページ専用のアクセス制御とデータ取得
   useEffect(() => {
-    // サーバー情報とユーザー情報が読み込めてから評価
     if (serversStatus === 'succeeded' && userRole !== 'unknown') {
       const isSupporter = userRole === 'supporter';
       const isHitServer = currentServer?.serverType === 'hit_the_world';
 
       if (!isSupporter || !isHitServer) {
-        // 条件に合わないユーザーはリダイレクト
         navigate('/servers', { replace: true });
         return;
       }
-
-      // ★★★★★ ここからが修正箇所です ★★★★★
-      // 権限チェックロジックを修正
+      
       const checkAuthAndFetchData = async () => {
         if (writeToken) {
-          // すでにトークンがあればリマインダーを取得
           if (serverId) dispatch(fetchReminders(serverId));
           setIsAuthChecked(true);
         } else {
-          // トークンがなければ、まず空のパスワードで試行
           try {
             if (!serverId) return;
             const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
@@ -89,16 +120,14 @@ export const SupporterView = () => {
             dispatch(setWriteToken({ serverId, token: newWriteToken }));
             dispatch(fetchReminders(serverId));
           } catch (error) {
-            // 空パスワードで失敗した場合、パスワードが必要だと判断しダイアログを開く
             setIsPasswordDialogOpen(true);
           } finally {
             setIsAuthChecked(true);
           }
         }
       };
-
+      
       checkAuthAndFetchData();
-      // ★★★★★ ここまで修正 ★★★★★
     }
   }, [serversStatus, userRole, currentServer, navigate, serverId, dispatch, writeToken]);
 
@@ -106,7 +135,7 @@ export const SupporterView = () => {
   const handleTimeAdjust = async (reminder: Reminder, minutes: number) => {
     const originalDate = new Date(reminder.startTime);
     if (isNaN(originalDate.getTime())) return;
-
+    
     const newDate = new Date(originalDate.getTime() + minutes * 60000);
     const updatedReminder = { ...reminder, startTime: newDate.toISOString() };
 
@@ -118,7 +147,7 @@ export const SupporterView = () => {
       dispatch(showToast({ message: '日時の更新に失敗しました。', severity: 'error' }));
     }
   };
-
+  
   // ログアウト処理
   const handleLogout = () => {
     dispatch(logout());
@@ -135,7 +164,7 @@ export const SupporterView = () => {
       dispatch(setWriteToken({ serverId, token: newWriteToken }));
       setIsPasswordDialogOpen(false);
       setPassword('');
-      dispatch(fetchReminders(serverId)); // 認証成功後にリマインダーを取得
+      dispatch(fetchReminders(serverId));
     } catch (error) {
       setVerificationError('パスワードが違います。');
     } finally {
@@ -143,66 +172,143 @@ export const SupporterView = () => {
     }
   };
 
-  const bossReminders = reminders.filter(isBossReminder);
+  // マニュアル入力モーダルのハンドラ
+  const handleOpenManualInput = (reminder: Reminder) => {
+    setManualInputReminder(reminder);
+    setManualTime(toLocalISOString(new Date(reminder.startTime)));
+  };
+  const handleCloseManualInput = () => setManualInputReminder(null);
 
-  // ★★★★★ 表示条件を isAuthChecked も見るように変更 ★★★★★
+  const handleManualTimeSubmit = async () => {
+    if (!manualInputReminder || !manualTime) return;
+    const updatedReminder = { ...manualInputReminder, startTime: new Date(manualTime).toISOString() };
+    try {
+      await dispatch(updateExistingReminder(updatedReminder)).unwrap();
+      dispatch(showToast({ message: '起点日時を更新しました。', severity: 'success' }));
+      handleCloseManualInput();
+    } catch (error) {
+      dispatch(showToast({ message: '日時の更新に失敗しました。', severity: 'error' }));
+    }
+  };
+  
+  // モーダル内でNOWボタンが押されたときの処理
+  const handleSetManualTimeToNow = () => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    setManualTime(toLocalISOString(now));
+  };
+
+
+  // NOW!! 確認ダイアログのハンドラ
+  const handleOpenNowConfirm = (reminder: Reminder) => setNowConfirmReminder(reminder);
+  const handleCloseNowConfirm = () => setNowConfirmReminder(null);
+  
+  const handleNowSubmit = async () => {
+    if (!nowConfirmReminder) return;
+    const now = new Date();
+    now.setSeconds(0, 0); // 秒は切り捨て
+    const updatedReminder = { ...nowConfirmReminder, startTime: now.toISOString() };
+    try {
+      await dispatch(updateExistingReminder(updatedReminder)).unwrap();
+      dispatch(showToast({ message: '起点日時を現在時刻に更新しました。', severity: 'success' }));
+      handleCloseNowConfirm();
+    } catch (error) {
+      dispatch(showToast({ message: '日時の更新に失敗しました。', severity: 'error' }));
+    }
+  };
+  
+  // 時計プレビューをレンダリングする関数
+  const renderIntervalClocks = () => {
+    if (!manualTimeValue || !manualInputReminder) return null;
+    const now = new Date();
+    const clocks = [];
+    const intervalHours = (manualInputReminder.recurrence as { type: 'interval', hours: number }).hours;
+
+    let nextStartTime = new Date(manualTimeValue);
+    while (nextStartTime <= now) {
+      nextStartTime.setHours(nextStartTime.getHours() + intervalHours);
+    }
+
+    for (let i = 0; i < 3; i++) {
+      const nextTime = new Date(nextStartTime.getTime() + i * intervalHours * 60 * 60 * 1000);
+      clocks.push(
+        <Stack key={i} alignItems="center" spacing={1}>
+          <Clock value={nextTime} size={isSmallScreen ? 70 : 100} renderNumbers />
+          <Typography variant="caption">{nextTime.toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Typography>
+        </Stack>
+      );
+    }
+    return clocks;
+  };
+
+  // ★★★★★ ここから追加 ★★★★★
+  const renderThemeIcon = () => {
+    if (colorMode.mode === 'auto') {
+      return <TonalityIcon />;
+    }
+    if (theme.palette.mode === 'dark') {
+      return <Brightness7Icon />;
+    }
+    return <Brightness4Icon />;
+  };
+  // ★★★★★ ここまで追加 ★★★★★
+
+  const bossReminders = reminders.filter(isBossReminder);
   const canView = isAuthChecked && userRole === 'supporter' && currentServer?.serverType === 'hit_the_world' && !!writeToken;
 
 
   return (
-    <Box>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       <AppBar position="static">
         <Toolbar>
           <AccessTimeIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            時刻更新モード
-          </Typography>
-          <IconButton color="inherit" onClick={handleLogout} aria-label="ログアウト">
-            <LogoutIcon />
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>時刻更新モード</Typography>
+          {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+          <IconButton sx={{ ml: 1 }} onClick={colorMode.toggleColorMode} color="inherit">
+            {renderThemeIcon()}
           </IconButton>
+          <IconButton color="inherit" onClick={handleLogout} aria-label="ログアウト"><LogoutIcon /></IconButton>
+          {/* ★★★★★ ここまで修正 ★★★★★ */}
         </Toolbar>
       </AppBar>
 
-      {/* ★★★★★ ここから修正 ★★★★★ */}
       {isAuthChecked ? (
         canView && (
           <Container maxWidth="sm" sx={{ mt: 4 }}>
             {remindersStatus === 'loading' ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                <CircularProgress />
-              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
             ) : !currentServer ? (
               <Typography color="error" align="center">サーバーが見つかりません。</Typography>
             ) : (
               <Stack spacing={2}>
-                <Typography variant="h5" align="center" gutterBottom>
-                  {currentServer.customName || currentServer.name}
-                </Typography>
+                <Typography variant="h5" align="center" gutterBottom>{currentServer.customName || currentServer.name}</Typography>
                 {bossReminders.length > 0 ? bossReminders.map(reminder => (
                   <Paper key={reminder.id} variant="outlined" sx={{ p: 2 }}>
-                    <Typography variant="h6" gutterBottom>
-                      {reminder.message.replace('{{offset}}', '').trim()}
-                    </Typography>
-                    <Stack spacing={1}>
+                    <Typography variant="h6" gutterBottom>{reminder.message.replace('{{offset}}', '').trim()}</Typography>
+                    <Stack spacing={0}>
                       <Box>
                         <Typography variant="body2" color="text.secondary">現在の討伐日時 (起点)</Typography>
-                        <Typography variant="body1" fontWeight="bold">{formatStartTime(reminder.startTime)}</Typography>
+                        <Typography variant="h5" component="p">{formatStartTime(reminder.startTime)}</Typography>
                       </Box>
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1, sm: 2 }} alignItems="flex-start">
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">進める</Typography>
-                          <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                            {[1, 5, 10].map(min => (
-                              <Button key={`fwd-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{min}分</Button>
-                            ))}
-                          </Stack>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">戻す</Typography>
-                          <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                            {[-1, -5, -10].map(min => (
-                              <Button key={`back-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{Math.abs(min)}分</Button>
-                            ))}
+                      <Stack spacing={1.5} alignItems="flex-start" sx={{ width: '100%', mt: 0 }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 2 }}>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">進める</Typography>
+                                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                                    {[1, 5, 10].map(min => <Button key={`fwd-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{min}分</Button>)}
+                                </Stack>
+                            </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">戻す</Typography>
+                                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                                    {[-1, -5, -10].map(min => <Button key={`back-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{Math.abs(min)}分</Button>)}
+                                </Stack>
+                            </Box>
+                        </Stack>
+                        <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5, width: '100%' }}>
+                          <Stack direction="row" spacing={1}>
+                            <Button size="small" variant="contained" onClick={() => handleOpenManualInput(reminder)}>マニュアル入力</Button>
+                            <Button size="small" variant="contained" color="warning" onClick={() => handleOpenNowConfirm(reminder)}>NOW!!</Button>
                           </Stack>
                         </Box>
                       </Stack>
@@ -216,36 +322,64 @@ export const SupporterView = () => {
           </Container>
         )
       ) : (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
+         <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
       )}
 
       <Dialog open={isPasswordDialogOpen} onClose={(_, reason) => reason !== 'backdropClick'}>
         <DialogTitle>パスワード認証</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            このサーバーを編集するにはパスワードが必要です。
-          </DialogContentText>
+          <DialogContentText sx={{ mb: 2 }}>このサーバーを編集するにはパスワードが必要です。</DialogContentText>
           <TextField
-            autoFocus
-            margin="dense"
-            label="サーバーパスワード"
-            type="password"
-            fullWidth
-            variant="standard"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            error={!!verificationError}
-            helperText={verificationError}
+            autoFocus margin="dense" label="サーバーパスワード" type="password" fullWidth variant="standard"
+            value={password} onChange={(e) => setPassword(e.target.value)}
+            error={!!verificationError} helperText={verificationError}
             onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handlePasswordSubmit} disabled={isVerifying}>
-            {isVerifying ? '確認中...' : '認証'}
-          </Button>
+          <Button onClick={handlePasswordSubmit} disabled={isVerifying}>{isVerifying ? '確認中...' : '認証'}</Button>
         </DialogActions>
       </Dialog>
-      {/* ★★★★★ ここまで修正 ★★★★★ */}
+      
+      <Dialog open={!!manualInputReminder} onClose={handleCloseManualInput} fullWidth maxWidth="sm">
+        <DialogTitle>日時を手動で更新</DialogTitle>
+        <DialogContent>
+            <Stack spacing={3} sx={{ pt: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="stretch">
+                    <TextField
+                        autoFocus margin="dense" label="討伐日時" type="datetime-local" fullWidth
+                        value={manualTime} onChange={(e) => setManualTime(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                    />
+                    <Button variant="outlined" onClick={handleSetManualTimeToNow} startIcon={<AccessTimeIcon />}>
+                      NOW!
+                    </Button>
+                </Stack>
+                {manualTimeValue && (
+                    <Paper variant="outlined" sx={{ p: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {renderIntervalClocks()}
+                    </Paper>
+                )}
+            </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseManualInput}>キャンセル</Button>
+          <Button onClick={handleManualTimeSubmit} variant="contained">更新</Button>
+        </DialogActions>
+      </Dialog>
+      
+      <Dialog open={!!nowConfirmReminder} onClose={handleCloseNowConfirm}>
+        <DialogTitle>現在時刻で上書きしますか？</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            「{nowConfirmReminder?.message.replace('{{offset}}', '').trim()}」の討伐日時を現在の時刻で上書きします。この操作は元に戻せません。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseNowConfirm}>キャンセル</Button>
+          <Button onClick={handleNowSubmit} color="warning" variant="contained">OK</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
