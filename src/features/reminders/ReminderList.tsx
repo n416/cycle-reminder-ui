@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
-import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder } from './remindersSlice.ts';
+import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder } from './remindersSlice.ts';
 import { selectAllServers, getServersStatus, getLastFetched, fetchServers, Server } from '@/features/servers/serversSlice';
 import { selectWriteTokenForServer, setWriteToken, selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
@@ -357,6 +357,32 @@ export const ReminderList = () => {
     navigate(`/servers/${serverId}/add?type=${type}`);
   };
 
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const handleTimeAdjust = async (reminder: Reminder, minutes: number) => {
+    const originalDate = new Date(reminder.startTime);
+    if (isNaN(originalDate.getTime())) {
+      dispatch(showToast({ message: '起点日時が無効なため、更新できません。', severity: 'error' }));
+      return;
+    }
+    
+    const newDate = new Date(originalDate.getTime() + minutes * 60000);
+
+    const updatedReminder = {
+      ...reminder,
+      startTime: newDate.toISOString(),
+    };
+
+    try {
+      await dispatch(updateExistingReminder(updatedReminder)).unwrap();
+      const action = minutes > 0 ? '進めました' : '戻しました';
+      dispatch(showToast({ message: `起点日時を ${Math.abs(minutes)} 分 ${action}。`, severity: 'success' }));
+    } catch (error) {
+      console.error('Failed to adjust time:', error);
+      dispatch(showToast({ message: '日時の更新に失敗しました。', severity: 'error' }));
+    }
+  };
+  // ★★★★★ ここまで ★★★★★
+
 
   const selectedReminder = reminders.find(r => r.id === currentReminderId);
 
@@ -369,45 +395,121 @@ export const ReminderList = () => {
         const isEditing = editingId === reminder.id;
         const isPaused = reminder.status === 'paused';
 
-        // ★★★ ここからが修正箇所です ★★★
         const displayMessage = reminder.message
-          .replace(/\{\{offset\}\}/g, '')
+          .replace(/\{\{\s*offset\s*\}\}/g, '')
           .replace(/\{\{all\}\}/g, 'スケジュールすべて')
           .trim();
-        // ★★★ ここまで ★★★
 
         return (
           <Accordion key={reminder.id} id={`reminder-${reminder.id}`} TransitionProps={{ unmountOnExit: true }}>
+            {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
-                {reminder.message.includes('{{all}}') ? (
-                  <FormatListBulletedIcon color="primary" />
-                ) : (
-                  <SpeakerNotesIcon color="action" />
-                )}
-                <Typography noWrap sx={{ flexGrow: 1, textDecoration: isPaused ? 'line-through' : 'none', color: isPaused ? 'text.disabled' : 'text.primary' }}>
-                  {displayMessage.split('\n')[0]} {/* ★★★ 修正 ★★★ */}
-                </Typography>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary', mr: 2 }}>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={{ xs: 0.5, sm: 2 }}
+                alignItems="stretch"
+                sx={{ width: '100%', pr: { sm: 1 } }}
+              >
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ flexGrow: 1, minWidth: 0 }}>
+                  {reminder.message.includes('{{all}}') ? (
+                    <FormatListBulletedIcon color="primary" />
+                  ) : (
+                    <SpeakerNotesIcon color="action" />
+                  )}
+                  <Typography
+                    sx={{
+                      textDecoration: isPaused ? 'line-through' : 'none',
+                      color: isPaused ? 'text.disabled' : 'text.primary',
+                      whiteSpace: { xs: 'normal', sm: 'nowrap' },
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {displayMessage.split('\n')[0]}
+                  </Typography>
+                </Stack>
+
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  sx={{
+                    color: 'text.secondary',
+                    pl: { xs: '40px', sm: 0 },
+                    flexShrink: 0,
+                  }}
+                >
                   <EventAvailableIcon fontSize="small" />
-                  <Typography variant="body2" noWrap>{formatNextOccurrence(reminder)}</Typography>
+                  <Typography variant="body2" noWrap>
+                    {formatNextOccurrence(reminder)}
+                  </Typography>
                 </Stack>
               </Stack>
             </AccordionSummary>
-            <AccordionDetails>
+            <AccordionDetails sx={{ p: { xs: 1, sm: 2 } }}>
+            {/* ★★★★★ ここまで ★★★★★ */}
               {isEditing ? (
                 <EditReminderForm reminder={reminder} onCancel={() => setEditingId(null)} />
               ) : (
                 <Stack spacing={2}>
                   <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                     <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {displayMessage} {/* ★★★ 修正 ★★★ */}
+                      {displayMessage}
                     </Typography>
                   </Box>
                   <Divider />
                   <Stack spacing={1.5}>
                     <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
-                    <Stack direction="row" alignItems="center" spacing={1.5}><CalendarMonthIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatStartTime(reminder.startTime)}</Typography></Stack>
+                    <Stack direction="column" alignItems="flex-start" spacing={1}>
+                      <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <CalendarMonthIcon color="action" sx={{ fontSize: 20 }} />
+                        <Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>起点日時</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{formatStartTime(reminder.startTime)}</Typography>
+                      </Stack>
+                      
+                      {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+                      {canWrite && (
+                        <Stack 
+                          direction={{ xs: 'column', sm: 'row' }} 
+                          spacing={{ xs: 1, sm: 2 }} 
+                          alignItems="flex-start" 
+                          sx={{ pl: '32px', pt: 1 }}
+                        >
+                          <Box>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>進める</Typography>
+                            <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                              {[1, 5, 10].map((min) => (
+                                <Button
+                                  key={`fwd-${min}`}
+                                  size="small"
+                                  variant="contained"
+                                  onClick={() => handleTimeAdjust(reminder, min)}
+                                >
+                                  {min}分
+                                </Button>
+                              ))}
+                            </Stack>
+                          </Box>
+
+                          <Box>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>戻す</Typography>
+                            <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                              {[-1, -5, -10].map((min) => (
+                                <Button
+                                  key={`back-${min}`}
+                                  size="small"
+                                  variant="contained"
+                                  onClick={() => handleTimeAdjust(reminder, min)}
+                                >
+                                  {Math.abs(min)}分
+                                </Button>
+                              ))}
+                            </Stack>
+                          </Box>
+                        </Stack>
+                      )}
+                      {/* ★★★★★ ここまで ★★★★★ */}
+                    </Stack>
                     <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
                   </Stack>
                   <Divider />
@@ -446,7 +548,6 @@ export const ReminderList = () => {
           <Button component={Link} to={`/servers/${serverId}/log`} variant="outlined" startIcon={<HistoryIcon />}>
             操作ログ
           </Button>
-          {/* ★★★★★ ボタンの表示条件を修正 ★★★★★ */}
           {!canWrite && !isAuthorizing && (
             <Button
               variant="outlined"
@@ -462,7 +563,6 @@ export const ReminderList = () => {
 
       <Stack spacing={1.5}>{content}</Stack>
 
-      {/* 書き込み権限があり、かつ「今日の予定」リマインダーがまだ無い場合のみカードを表示 */}
       {canWrite && !hasDailySummaryReminder && (
         <AddDailySummaryCard onClick={() => setSummaryDialogOpen(true)} />
       )}
@@ -535,7 +635,6 @@ export const ReminderList = () => {
         onClose={() => setIsTypeModalOpen(false)}
         onSelect={handleTypeSelected}
       />
-      {/* serverIdがある場合のみダイアログをレンダリング */}
       {serverId && (
         <DailySummaryDialog
           isOpen={isSummaryDialogOpen}
