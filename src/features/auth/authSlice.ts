@@ -18,6 +18,29 @@ export const fetchUserStatus = createAsyncThunk('auth/fetchUserStatus', async ()
   return response.data.role as UserRole;
 });
 
+// ★★★★★ ここからが修正箇所です ★★★★★
+export const tryFetchWriteToken = createAsyncThunk(
+  'auth/tryFetchWriteToken',
+  async (serverId: string, { dispatch, getState }) => {
+    const state = getState() as RootState;
+    // 既にトークンがある場合やサポーターでない場合は何もしない
+    if (state.auth.writeTokens[serverId] || state.auth.userRole !== 'supporter') {
+      return;
+    }
+    try {
+      // パスワードなしでトークン取得を試行
+      const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password: '' });
+      const writeToken = response.data.writeToken;
+      dispatch(setWriteToken({ serverId, token: writeToken }));
+    } catch (error) {
+      // 失敗した場合は、サーバーにパスワードが設定されている可能性が高い。
+      // UIはロックされたままとなり、ユーザーが編集操作をしようとした時にパスワードが求められる（将来的な実装）。
+      console.log(`Could not automatically fetch write token for server ${serverId}. It may be password-protected.`);
+    }
+  }
+);
+// ★★★★★ ここまで ★★★★★
+
 interface AuthState {
   writeTokens: { [serverId: string]: string };
   userRole: UserRole;
@@ -52,7 +75,7 @@ export const authSlice = createSlice({
       console.log("【Auth】Logged out and cleared all tokens.");
     }
   },
-    extraReducers: (builder) => {
+  extraReducers: (builder) => {
     builder
       .addCase(fetchUserStatus.fulfilled, (state, action) => {
         state.userRole = action.payload;
@@ -63,7 +86,6 @@ export const authSlice = createSlice({
   }
 });
 
-// ★★★★★ logout をエクスポートに追加 ★★★★★
 export const { setWriteToken, clearWriteTokens, setUserRole, logout } = authSlice.actions;
 
 export const selectWriteTokenForServer = (serverId: string) => (state: RootState) => state.auth.writeTokens[serverId];

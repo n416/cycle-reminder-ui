@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
 import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder } from './remindersSlice.ts';
 import { selectAllServers, getServersStatus, Server } from '@/features/servers/serversSlice';
-import { selectWriteTokenForServer, selectUserRole } from '@/features/auth/authSlice';
+import { selectWriteTokenForServer, selectUserRole, tryFetchWriteToken, setWriteToken } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import { MissedNotifications } from '../missed-notifications/MissedNotifications.tsx';
 import {
@@ -22,6 +22,14 @@ import {
   ListItemText,
   IconButton,
   CircularProgress,
+  // ★★★★★ ここから追加 ★★★★★
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  TextField,
+  // ★★★★★ ここまで追加 ★★★★★
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -43,6 +51,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { EditReminderForm } from './EditReminderForm.tsx';
 import apiClient from '@/api/client';
 import { ServerSettingsModal } from '../servers/ServerSettingsModal';
+import LockOpenIcon from '@mui/icons-material/LockOpen'; // ★★★★★ アイコンを追加 ★★★★★
 
 const getServerIconUrl = (server: Server): string | null => {
   if (server.customIcon) {
@@ -176,22 +185,29 @@ export const ReminderList = () => {
   const canCreate = isOwnerOrTester && isDiscordAdmin;
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  // ★★★★★ ここからが修正箇所です ★★★★★
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [currentReminderId, setCurrentReminderId] = useState<null | string>(null);
   const isMenuOpen = Boolean(menuAnchorEl);
-  // ★★★★★ ここまで ★★★★★
   const serverName = currentServer?.customName || currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+  // ★★★★★ ここまで ★★★★★
+
   useEffect(() => {
     if (serverId) {
       dispatch(fetchReminders(serverId));
+      if (userRole === 'supporter') {
+        dispatch(tryFetchWriteToken(serverId));
+      }
     }
-  }, [serverId, dispatch]);
+  }, [serverId, dispatch, userRole]);
 
-  // ★★★★★ ここからが修正箇所です ★★★★★
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>, reminderId: string) => {
     setMenuAnchorEl(event.currentTarget);
     setCurrentReminderId(reminderId);
@@ -223,7 +239,6 @@ export const ReminderList = () => {
       dispatch(showToast({ message: 'テスト送信に失敗しました。', severity: 'error' }));
     }
   };
-  // ★★★★★ ここまで ★★★★★
 
   const handleTimeAdjust = async (reminder: Reminder, minutes: number) => {
     const originalDate = new Date(reminder.startTime);
@@ -231,7 +246,7 @@ export const ReminderList = () => {
       dispatch(showToast({ message: '起点日時が無効なため、更新できません。', severity: 'error' }));
       return;
     }
-    
+
     const newDate = new Date(originalDate.getTime() + minutes * 60000);
 
     const updatedReminder = {
@@ -249,6 +264,25 @@ export const ReminderList = () => {
     }
   };
 
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const handlePasswordSubmit = async () => {
+    if (!serverId) return;
+    setIsVerifying(true);
+    setVerificationError('');
+    try {
+      const response = await apiClient.post(`/servers/${serverId}/verify-password`, { password });
+      const newWriteToken = response.data.writeToken;
+      dispatch(setWriteToken({ serverId, token: newWriteToken }));
+      setIsPasswordDialogOpen(false);
+      setPassword('');
+      dispatch(showToast({ message: 'ロックを解除しました。', severity: 'success' }));
+    } catch (error) {
+      setVerificationError('パスワードが違います。');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+  // ★★★★★ ここまで ★★★★★
 
   let content;
   if (serversStatus !== 'succeeded' || remindersStatus === 'loading') {
@@ -315,9 +349,9 @@ export const ReminderList = () => {
             </AccordionSummary>
             <AccordionDetails sx={{ p: 0 }}>
               {isEditing ? (
-                 <Box sx={{ p: { xs: 1, sm: 2 } }}>
-                    <EditReminderForm reminder={reminder} onCancel={() => setEditingId(null)} />
-                 </Box>
+                <Box sx={{ p: { xs: 1, sm: 2 } }}>
+                  <EditReminderForm reminder={reminder} onCancel={() => setEditingId(null)} />
+                </Box>
               ) : (
                 <Stack spacing={0}>
                   <Box sx={{ p: 2, bgcolor: 'action.hover', margin: 2 }}>
@@ -329,7 +363,7 @@ export const ReminderList = () => {
                     <Divider sx={{ my: 2 }} />
                     <Stack spacing={1.5}>
                       <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" sx={{ fontSize: 20 }} /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
-                      
+
                       <Stack direction="row" alignItems="flex-start" spacing={1.5}>
                         <CalendarMonthIcon color="action" sx={{ fontSize: 20, mt: '8px' }} />
                         <Stack direction="column" spacing={1} sx={{ width: '100%' }}>
@@ -338,9 +372,9 @@ export const ReminderList = () => {
                             <Typography variant="body1" sx={{ fontWeight: 500 }}>{formatStartTime(reminder.startTime)}</Typography>
                           </Box>
                           {canWrite && (
-                            <Stack 
-                              direction={{ xs: 'column', sm: 'row' }} 
-                              spacing={{ xs: 0.5, sm: 2 }} 
+                            <Stack
+                              direction={{ xs: 'column', sm: 'row' }}
+                              spacing={{ xs: 0.5, sm: 2 }}
                               alignItems="flex-start"
                             >
                               <Box>
@@ -369,9 +403,7 @@ export const ReminderList = () => {
                     <Divider sx={{ my: 2 }} />
                     <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
                       {canWrite && <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setEditingId(reminder.id)}>編集</Button>}
-                      {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
                       <IconButton aria-label="その他のアクション" onClick={(e) => handleMenuClick(e, reminder.id)}><MoreVertIcon /></IconButton>
-                      {/* ★★★★★ ここまで ★★★★★ */}
                     </Stack>
                   </Box>
                 </Stack>
@@ -390,7 +422,7 @@ export const ReminderList = () => {
   return (
     <>
       {isDiscordAdmin && serverId && <MissedNotifications serverId={serverId} />}
-      
+
       {currentServer && (
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
@@ -409,6 +441,18 @@ export const ReminderList = () => {
             )}
           </Stack>
           <Stack direction="row" spacing={1} alignSelf={{ xs: 'flex-end', sm: 'center' }}>
+            {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+            {userRole === 'supporter' && !canWrite && (
+              <Button
+                variant="outlined"
+                startIcon={<LockOpenIcon />}
+                onClick={() => setIsPasswordDialogOpen(true)}
+                color="warning"
+              >
+                編集ロックを解除
+              </Button>
+            )}
+            {/* ★★★★★ ここまで ★★★★★ */}
             <Button component={Link} to={`/servers/${serverId}/log`} variant="outlined" startIcon={<HistoryIcon />}>
               操作ログ
             </Button>
@@ -417,10 +461,9 @@ export const ReminderList = () => {
       )}
 
       <Stack spacing={1.5}>{content}</Stack>
-      
+
       {canCreate && <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={() => navigate(`/servers/${serverId}/add`)}><AddIcon /></Fab>}
 
-      {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
       <Menu anchorEl={menuAnchorEl} open={isMenuOpen} onClose={handleMenuClose}>
         {selectedReminder && (
           <div>
@@ -447,9 +490,38 @@ export const ReminderList = () => {
           </div>
         )}
       </Menu>
-      {/* ★★★★★ ここまで ★★★★★ */}
 
       <ServerSettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} server={currentServer ?? null} />
+
+      {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+      <Dialog open={isPasswordDialogOpen} onClose={(_, reason) => reason !== 'backdropClick'}>
+        <DialogTitle>パスワード認証</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            このサーバーを編集するにはパスワードが必要です。
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="サーバーパスワード"
+            type="password"
+            fullWidth
+            variant="standard"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={!!verificationError}
+            helperText={verificationError}
+            onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsPasswordDialogOpen(false)} disabled={isVerifying}>キャンセル</Button>
+          <Button onClick={handlePasswordSubmit} disabled={isVerifying}>
+            {isVerifying ? '確認中...' : '認証'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* ★★★★★ ここまで ★★★★★ */}
     </>
   );
 };
