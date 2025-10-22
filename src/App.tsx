@@ -17,6 +17,7 @@ import { PaymentCancelPage } from '@/pages/PaymentCancelPage';
 import { Toast } from '@/features/toast/Toast';
 import { SessionExpiredDialog } from '@/features/session/SessionExpiredDialog';
 import { SupporterView } from '@/features/supporters/SupporterView';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 function App() {
   const dispatch = useAppDispatch();
@@ -49,13 +50,14 @@ function App() {
             <Route path="/servers/:serverId" element={<Container maxWidth="md" sx={containerStyles}><ReminderList /></Container>} />
             <Route path="/servers/:serverId/add" element={<Container maxWidth="md" sx={containerStyles}><AddReminderForm /></Container>} />
             <Route path="/servers/:serverId/log" element={<Container maxWidth="md" sx={containerStyles}><AuditLogView /></Container>} />
+            {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+            {/* どのルートにも一致しない場合のフォールバック */}
+            <Route path="*" element={<Container maxWidth="sm" sx={{ ...containerStyles, mt: 4 }}><NotFoundPage /></Container>} />
+            {/* ★★★★★ ここまで ★★★★★ */}
           </Route>
-          
-          {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+
           {/* HIT: The World のサポーター専用ボス時刻編集ページのルート */}
           <Route path="/hit-the-world/:serverId/boss-time-adjustment" element={<SupporterView />} />
-          {/* ★★★★★ ここまで ★★★★★ */}
-
         </Route>
       </Routes>
     </>

@@ -4,11 +4,11 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { lightTheme, darkTheme } from '@/theme';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { ThemeOverrides } from './ThemeOverrides';
-import { useAppDispatch } from '@/app/hooks'; 
+import { useAppDispatch } from '@/app/hooks';
 import { showToast } from '@/features/toast/toastSlice';
 
 const ColorModeContext = createContext({
-  toggleColorMode: () => {},
+  toggleColorMode: () => { },
   mode: 'auto',
 });
 
@@ -17,34 +17,32 @@ export const useColorMode = () => useContext(ColorModeContext);
 export const ThemeRegistry = ({ children }: { children: React.ReactNode }) => {
   const [mode, setMode] = useLocalStorage<'auto' | 'light' | 'dark'>('themeMode', 'auto');
   const dispatch = useAppDispatch();
-  const isInitialMount = useRef(true); // 初回マウントかどうかを判定するフラグ
-  
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
 
   // ★★★★★ ここからが修正箇所です ★★★★★
-  // mode の変更を副作用として検知し、トーストを表示する
-  useEffect(() => {
-    // 初回マウント時はトーストを表示しない
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
+  // 前回の mode の値を保持するための ref
+  const previousModeRef = useRef(mode);
 
-    const modeText = { auto: 'システム設定に連動', light: 'ライトモード', dark: 'ダークモード' };
-    dispatch(showToast({ message: `テーマを「${modeText[mode]}」に変更しました`, severity: 'info' }));
-  }, [mode, dispatch]); // modeが変更された時にこのeffectを実行
+  useEffect(() => {
+    // 前回の値と現在の値が実際に変更された場合のみトーストを表示する
+    if (previousModeRef.current !== mode) {
+      const modeText = { auto: 'システム設定に連動', light: 'ライトモード', dark: 'ダークモード' };
+      dispatch(showToast({ message: `テーマを「${modeText[mode]}」に変更しました`, severity: 'info' }));
+    }
+    // 現在の値を次のレンダリングのために保存
+    previousModeRef.current = mode;
+  }, [mode, dispatch]);
 
   const colorMode = useMemo(
     () => ({
       toggleColorMode: () => {
-        // stateの更新ロジックのみに専念させる
-        setMode((prevMode) => 
+        setMode((prevMode) =>
           prevMode === 'auto' ? 'light' : prevMode === 'light' ? 'dark' : 'auto'
         );
       },
       mode,
     }),
-    [setMode, mode], // dispatchは依存配列から削除
+    [setMode, mode],
   );
   // ★★★★★ ここまで修正 ★★★★★
 
