@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 // ★★★★★ useLocation をインポート ★★★★★
 import { useLocation } from 'react-router-dom';
 import { Box, Typography, Button, Container, Stack, Paper, Dialog, DialogTitle, DialogContent, TextField, DialogActions, DialogContentText, Link } from '@mui/material';

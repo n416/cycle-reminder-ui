@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Box, Typography, Container, Paper, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/app/hooks';

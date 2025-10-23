@@ -1,9 +1,8 @@
-import React, { useEffect } from 'react'; // useEffectをインポート
-import { Box, Typography, Container, Paper, Button } from '@mui/material';
+import { useEffect } from 'react'; // useEffectをインポート
+import { Typography, Container, Paper, Button } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import apiClient from '@/api/client'; // apiClientをインポート
 import { useAppDispatch } from '@/app/hooks'; // dispatchをインポート
-import { showToast } from '@/features/toast/toastSlice'; // toastをインポート
 
 export const PaymentCancelPage = () => {
   const dispatch = useAppDispatch(); // dispatch関数を取得

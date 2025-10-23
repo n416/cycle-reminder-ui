@@ -1,5 +1,4 @@
-import React from 'react';
-import { Box, Typography, Paper, Button } from '@mui/material';
+import { Typography, Paper, Button } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 

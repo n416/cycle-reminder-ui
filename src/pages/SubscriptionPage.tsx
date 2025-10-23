@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Typography, Button, Container, Paper, Stack, Divider, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material'; // Dialog関連をインポート
 import apiClient from '@/api/client';
 import { useAppDispatch } from '@/app/hooks';

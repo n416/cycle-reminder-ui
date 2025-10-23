@@ -2,9 +2,6 @@ import { useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
 import { selectAllLogs, getLogsStatus, fetchLogs, LogEntry } from './auditLogSlice';
 import { addNewReminder } from '@/features/reminders/remindersSlice';
-import { selectAllServers } from '@/features/servers/serversSlice';
-// ★★★★★ selectUserRole をインポート ★★★★★
-import { selectWriteTokenForServer, selectUserRole } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice';
 import {
   Box,
@@ -18,6 +15,9 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { Link as RouterLink, useParams, useNavigate } from 'react-router-dom';
+// ★★★★★ ここからが修正箇所です ★★★★★
+import { useServerPermission } from '@/hooks/useServerPermission';
+// ★★★★★ ここまで ★★★★★
 
 const DiffViewer = ({ log }: { log: LogEntry }) => {
   const { before, after, action } = log;
@@ -65,15 +65,8 @@ export const AuditLogView = () => {
   const logsStatus = useAppSelector(getLogsStatus);
   const error = useAppSelector(state => state.auditLog.error);
 
-  const servers = useAppSelector(selectAllServers);
-  const writeToken = useAppSelector(selectWriteTokenForServer(serverId!));
-  const userRole = useAppSelector(selectUserRole); // ★★★ アプリの役割を取得 ★★★
-  const currentServer = servers.find(s => s.id === serverId);
-
-  // ★★★★★ ここからがセキュリティー修正箇所です ★★★★★
-  const isDiscordAdmin = currentServer?.role === 'admin';
-  const needsAdminToken = (userRole === 'tester') || (isDiscordAdmin && userRole === 'owner');
-  const canWrite = needsAdminToken || !!writeToken;
+  // ★★★★★ ここからが修正箇所です ★★★★★
+  const { canManipulateLogs } = useServerPermission(serverId);
   // ★★★★★ ここまで ★★★★★
 
   useEffect(() => {
@@ -89,21 +82,20 @@ export const AuditLogView = () => {
     dispatch(addNewReminder({
       serverId: serverId,
       newReminder: {
-        message: dataToRestore.message, // ★ [復元] プレフィックスを削除
+        message: dataToRestore.message,
         channel: dataToRestore.channel,
         channelId: dataToRestore.channelId,
         startTime: dataToRestore.startTime,
         recurrence: dataToRestore.recurrence,
-        status: 'paused', // 休止状態で復元
+        status: 'paused',
         selectedEmojis: dataToRestore.selectedEmojis || [],
-        hideNextTime: dataToRestore.hideNextTime || false, // ★ hideNextTime も復元
+        hideNextTime: dataToRestore.hideNextTime || false,
       }
     })).unwrap()
       .then(() => {
         dispatch(showToast({ message: '休止状態でリマインダーを復元しました。', severity: 'info' }));
       })
-      .catch((err) => {
-        console.error("復元に失敗しました:", err);
+      .catch((_err) => {
         dispatch(showToast({ message: '復元に失敗しました。', severity: 'error' }));
       });
   };
@@ -131,12 +123,8 @@ export const AuditLogView = () => {
               <CardContent>
                 <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5 }}>
                   <Chip label={log.action} color={getActionColor(log.action)} size="small" />
-                  <Typography variant="body2" color="text.secondary">
-                    {new Date(log.timestamp).toLocaleString('ja-JP')}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    by {log.user}
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">{new Date(log.timestamp).toLocaleString('ja-JP')}</Typography>
+                  <Typography variant="body2" color="text.secondary">by {log.user}</Typography>
                 </Stack>
                 {log.action !== '削除' && reminderId ? (
                   <MuiLink component={RouterLink} to={`/servers/${serverId}`} state={{ linkedReminderId: reminderId }} underline="hover" sx={{ color: 'inherit' }}>
@@ -149,15 +137,15 @@ export const AuditLogView = () => {
                   <DiffViewer log={log} />
                 </Box>
 
-                {/* ★★★★★ ボタンをcanWriteで囲み、権限がない場合は非表示にする ★★★★★ */}
-                {canWrite && (log.action === '更新' || log.action === '削除') && (
+                {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+                {canManipulateLogs && (log.action === '更新' || log.action === '削除') && (
                   <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                     <Button variant="outlined" size="small" onClick={() => handleRestore(log)}>
                       この内容で復元
                     </Button>
                   </Box>
                 )}
-
+                {/* ★★★★★ ここまで ★★★★★ */}
               </CardContent>
             </Card>
           );
@@ -173,18 +161,13 @@ export const AuditLogView = () => {
     <Box>
       <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
         <Box>
-          <Typography variant="h5" gutterBottom>
-            操作ログ
-          </Typography>
-          <Typography paragraph color="text.secondary">
-            直近30件の操作履歴が表示されます。
-          </Typography>
+          <Typography variant="h5" gutterBottom>操作ログ</Typography>
+          <Typography paragraph color="text.secondary">直近30件の操作履歴が表示されます。</Typography>
         </Box>
         <Button variant="outlined" onClick={() => navigate(`/servers/${serverId}`)}>
           リマインダー一覧へ戻る
         </Button>
       </Stack>
-
       {content}
     </Box>
   );
