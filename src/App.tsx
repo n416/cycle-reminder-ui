@@ -18,6 +18,7 @@ import { Toast } from '@/features/toast/Toast';
 import { SessionExpiredDialog } from '@/features/session/SessionExpiredDialog';
 import { SupporterView } from '@/features/supporters/SupporterView';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { PaymentPendingPage } from './pages/PaymentPendingPage'; // ★★★ 新しいページをインポート ★★★
 
 function App() {
   const dispatch = useAppDispatch();
@@ -39,24 +40,25 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
-        <Route path="/subscribe" element={<SubscriptionPage />} />
+        
         <Route path="/payment/success" element={<PaymentSuccessPage />} />
         <Route path="/payment/cancel" element={<PaymentCancelPage />} />
+        {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
+        <Route path="/payment/pending" element={<PaymentPendingPage />} />
+        {/* ★★★★★ ここまで ★★★★★ */}
+        
         <Route element={<ProtectedRoute />}>
-          {/* 通常のレイアウト */}
+          <Route path="/subscribe" element={<SubscriptionPage />} />
+          
           <Route element={<Layout />}>
             <Route path="/" element={<Navigate to="/servers" replace />} />
             <Route path="/servers" element={<Container maxWidth="md" sx={containerStyles}><ServerList /></Container>} />
             <Route path="/servers/:serverId" element={<Container maxWidth="md" sx={containerStyles}><ReminderList /></Container>} />
             <Route path="/servers/:serverId/add" element={<Container maxWidth="md" sx={containerStyles}><AddReminderForm /></Container>} />
             <Route path="/servers/:serverId/log" element={<Container maxWidth="md" sx={containerStyles}><AuditLogView /></Container>} />
-            {/* ★★★★★ ここからが修正箇所です ★★★★★ */}
-            {/* どのルートにも一致しない場合のフォールバック */}
             <Route path="*" element={<Container maxWidth="sm" sx={{ ...containerStyles, mt: 4 }}><NotFoundPage /></Container>} />
-            {/* ★★★★★ ここまで ★★★★★ */}
           </Route>
 
-          {/* HIT: The World のサポーター専用ボス時刻編集ページのルート */}
           <Route path="/hit-the-world/:serverId/boss-time-adjustment" element={<SupporterView />} />
         </Route>
       </Routes>

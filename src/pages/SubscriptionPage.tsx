@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography, Button, Container, Paper, Stack, Divider, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material'; // Dialog関連をインポート
+import { Box, Typography, Button, Container, Paper, Stack, Divider, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import apiClient from '@/api/client';
 import { useAppDispatch } from '@/app/hooks';
 import { showToast } from '@/features/toast/toastSlice';
@@ -20,7 +20,7 @@ const testerIds = (import.meta.env.VITE_TESTER_USER_IDS || '').split(',');
 
 export const SubscriptionPage = () => {
   const [loading, setLoading] = useState<'monthly' | 'annual' | 'tester' | null>(null);
-  const [pendingConfirmationOpen, setPendingConfirmationOpen] = useState(false); // ★ 確認ダイアログ用のstate
+  const [pendingConfirmationOpen, setPendingConfirmationOpen] = useState(false);
   const dispatch = useAppDispatch();
   const currentUserId = getUserIdFromToken();
 
@@ -35,19 +35,16 @@ export const SubscriptionPage = () => {
           setLoading(null);
       }
     } catch (error: any) {
-      // ★★★★★ ここからが修正箇所です ★★★★★
       if (error.response && error.response.data.error?.includes('支払い手続き中')) {
-        // pendingエラーの場合、確認ダイアログを開く
         setPendingConfirmationOpen(true);
       } else {
         dispatch(showToast({ message: '決済セッションの作成に失敗しました。', severity: 'error' }));
       }
       setLoading(null);
-      // ★★★★★ ここまで ★★★★★
     }
   };
 
-  // ★★★★★ ここからが新しく追加する関数です ★★★★★
+  // ★★★★★ ここからが新しく追加・修正した箇所です ★★★★★
   const handleCancelAndRetry = async () => {
     setPendingConfirmationOpen(false);
     setLoading('monthly'); // 仮のローディング状態
@@ -85,7 +82,6 @@ export const SubscriptionPage = () => {
   return (
     <Container component="main" maxWidth="md">
       <Paper elevation={3} sx={{ p: 4, mt: 8, borderRadius: 4, textAlign: 'center' }}>
-        {/* ... (中略) ... */}
         <Typography component="h1" variant="h4" gutterBottom>
           オーナー登録プランのご案内
         </Typography>
@@ -138,7 +134,7 @@ export const SubscriptionPage = () => {
         )}
       </Paper>
 
-      {/* ★★★★★ ここに確認ダイアログを追加します ★★★★★ */}
+      {/* ★★★★★ ここからが新しく追加・修正した箇所です ★★★★★ */}
       <Dialog
         open={pendingConfirmationOpen}
         onClose={() => setPendingConfirmationOpen(false)}
@@ -158,6 +154,7 @@ export const SubscriptionPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* ★★★★★ ここまで ★★★★★ */}
     </Container>
   );
 };

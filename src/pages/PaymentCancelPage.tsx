@@ -1,13 +1,13 @@
-import { useEffect } from 'react'; // useEffectをインポート
+import { useEffect } from 'react';
 import { Typography, Container, Paper, Button } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import apiClient from '@/api/client'; // apiClientをインポート
-import { useAppDispatch } from '@/app/hooks'; // dispatchをインポート
+import apiClient from '@/api/client';
+import { useAppDispatch } from '@/app/hooks';
 
 export const PaymentCancelPage = () => {
-  const dispatch = useAppDispatch(); // dispatch関数を取得
+  const dispatch = useAppDispatch();
 
-  // ★★★★★ ここからが修正箇所です ★★★★★
+  // ★★★★★ ここからが新しく追加・修正した箇所です ★★★★★
   useEffect(() => {
     const cancelPendingPayment = async () => {
       try {
@@ -21,7 +21,7 @@ export const PaymentCancelPage = () => {
     };
 
     cancelPendingPayment();
-  }, [dispatch]); // dispatchを依存配列に追加
+  }, [dispatch]);
   // ★★★★★ ここまで ★★★★★
 
   return (
