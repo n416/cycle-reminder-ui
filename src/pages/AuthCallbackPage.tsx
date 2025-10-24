@@ -30,20 +30,30 @@ export const AuthCallbackPage = () => {
 
         dispatch(setUserRole(actualRole));
 
-        // ★★★★★ ここからが修正箇所です ★★★★★
         if (roleIntent === 'owner' && actualRole === 'supporter') {
           navigate('/subscribe', { replace: true });
         } else if (redirectPath) {
-          // リダイレクトパスがあればそこへ移動
           navigate(decodeURIComponent(redirectPath), { replace: true });
         }
         else {
-          // なければデフォルトの /servers へ
           navigate('/servers', { replace: true });
         }
-        // ★★★★★ ここまで ★★★★★
-      } catch (error) {
-        console.error("Failed to verify user status, redirecting to login.", error);
+      } catch (error: any) { // ★ any型にキャストして詳細なエラー情報を取得
+        // --- ★★★ ここからデバッグログを修正・追加 ★★★ ---
+        console.error("【フロントエンド】ユーザーステータスの検証に失敗し、ログインページにリダイレクトします。");
+        if (error.response) {
+          // バックエンドから返されたエラーの詳細
+          console.error("エラーデータ:", error.response.data);
+          console.error("エラーステータス:", error.response.status);
+          console.error("エラーヘッダー:", error.response.headers);
+        } else if (error.request) {
+          // リクエストは行われたが、レスポンスがなかった場合
+          console.error("リクエストデータ:", error.request);
+        } else {
+          // その他のエラー
+          console.error("エラーメッセージ:", error.message);
+        }
+        // --- ★★★ ここまで ★★★ ---
         navigate('/login', { replace: true });
       }
     };

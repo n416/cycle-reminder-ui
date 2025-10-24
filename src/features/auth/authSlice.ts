@@ -81,7 +81,12 @@ export const authSlice = createSlice({
         state.userRole = action.payload;
       })
       .addCase(fetchUserStatus.rejected, (state) => {
-        state.userRole = 'supporter';
+        // --- ★★★ ここから修正 ★★★ ---
+        // 失敗した場合は'supporter'に決め打ちするのではなく、'unknown'に戻して
+        // 保護されたルートへのアクセスを確実にブロックする
+        state.userRole = 'unknown';
+        console.error("【authSlice】fetchUserStatusが失敗したため、ユーザーロールを 'unknown' に設定しました。");
+        // --- ★★★ ここまで修正 ★★★ ---
       });
   }
 });

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
-import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder } from './remindersSlice.ts';
+// ★★★★★ ここからが修正箇所です ★★★★★
+import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder, testSendReminder } from './remindersSlice.ts';
+// ★★★★★ ここまで ★★★★★
 import { selectAllServers, getServersStatus, Server } from '@/features/servers/serversSlice';
 import { setWriteToken } from '@/features/auth/authSlice';
-import { showToast } from '@/features/toast/toastSlice';
+import { showToast } from '@/features/toast/toastSlice.ts';
 import { MissedNotifications } from '../missed-notifications/MissedNotifications.tsx';
 import {
   Typography, Accordion, AccordionSummary, AccordionDetails, Box, Fab, Stack, Divider, Button, Avatar, Menu, MenuItem,
@@ -31,9 +33,7 @@ import { EditReminderForm } from './EditReminderForm.tsx';
 import apiClient from '@/api/client';
 import { ServerSettingsModal } from '../servers/ServerSettingsModal';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
-// ★★★★★ ここからが修正箇所です ★★★★★
 import { useServerPermission } from '@/hooks/useServerPermission';
-// ★★★★★ ここまで ★★★★★
 
 const getServerIconUrl = (server: Server): string | null => {
   if (server.customIcon) return server.customIcon;
@@ -125,9 +125,7 @@ export const ReminderList = () => {
   const serversStatus = useAppSelector(getServersStatus);
   const currentServer = servers.find(s => s.id === serverId);
 
-  // ★★★★★ ここからが修正箇所です ★★★★★
   const { canCreate, canEdit, canManageServerSettings, canViewLogs, isLockedByPassword } = useServerPermission(serverId);
-  // ★★★★★ ここまで ★★★★★
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -157,23 +155,26 @@ export const ReminderList = () => {
     setCurrentReminderId(null);
   };
 
+  // ★★★★★ ここからが新しく追加・修正した箇所です ★★★★★
   const handleTestSend = async (reminder: Reminder) => {
-    // canEdit権限で代用
     if (!canEdit) {
       dispatch(showToast({ message: 'テスト送信の権限がありません。', severity: 'error' }));
       return;
     }
     try {
-      await apiClient.post(`/reminders/${reminder.serverId}/test-send`, {
+      await dispatch(testSendReminder({
+        serverId: reminder.serverId,
         channelId: reminder.channelId,
         message: reminder.message,
         selectedEmojis: reminder.selectedEmojis,
-      });
+      })).unwrap();
       dispatch(showToast({ message: 'テスト送信しました！', severity: 'success' }));
     } catch (error) {
       dispatch(showToast({ message: 'テスト送信に失敗しました。', severity: 'error' }));
     }
   };
+  // ★★★★★ ここまで ★★★★★
+
 
   const handleTimeAdjust = async (reminder: Reminder, minutes: number) => {
     const originalDate = new Date(reminder.startTime);

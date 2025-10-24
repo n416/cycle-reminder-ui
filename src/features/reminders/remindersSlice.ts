@@ -93,6 +93,25 @@ export const toggleStatusAsync = createAsyncThunk('reminders/toggleStatusAsync',
   return response.data as Reminder;
 });
 
+// ★★★★★ ここからが新しく追加・修正した箇所です ★★★★★
+export const testSendReminder = createAsyncThunk(
+  'reminders/testSend',
+  async (reminder: Pick<Reminder, 'serverId' | 'channelId' | 'message' | 'selectedEmojis'>, thunkAPI) => {
+    const writeToken = await ensureWriteToken(reminder.serverId, thunkAPI);
+    await apiClient.post(`/reminders/${reminder.serverId}/test-send`,
+      {
+        channelId: reminder.channelId,
+        message: reminder.message,
+        selectedEmojis: reminder.selectedEmojis,
+      },
+      { headers: { 'x-write-token': writeToken } }
+    );
+    // 成功した場合、何も返す必要はない
+  }
+);
+// ★★★★★ ここまで ★★★★★
+
+
 export const addDailySummaryReminder = createAsyncThunk(
   'reminders/addDailySummary',
   async ({ serverId, channelId, time }: { serverId: string; channelId: string; time: string }, thunkAPI) => {
@@ -103,7 +122,6 @@ export const addDailySummaryReminder = createAsyncThunk(
     return response.data as Reminder;
   }
 );
-// ★★★★★ ここまで ★★★★★
 
 
 export const remindersSlice = createSlice({
