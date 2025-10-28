@@ -18,7 +18,8 @@ import { Toast } from '@/features/toast/Toast';
 import { SessionExpiredDialog } from '@/features/session/SessionExpiredDialog';
 import { SupporterView } from '@/features/supporters/SupporterView';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { PaymentPendingPage } from './pages/PaymentPendingPage'; // ★★★ 新しいページをインポート ★★★
+import { PaymentPendingPage } from './pages/PaymentPendingPage';
+import { ContactPage } from './pages/ContactPage'; // ★★★ お問い合わせページをインポート ★★★
 
 function App() {
   const dispatch = useAppDispatch();
@@ -40,6 +41,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         
         <Route path="/payment/success" element={<PaymentSuccessPage />} />
         <Route path="/payment/cancel" element={<PaymentCancelPage />} />

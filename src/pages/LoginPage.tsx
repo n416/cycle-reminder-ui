@@ -1,7 +1,6 @@
 import { useState } from 'react';
-// ★★★★★ useLocation をインポート ★★★★★
-import { useLocation } from 'react-router-dom';
-import { Box, Typography, Button, Container, Stack, Paper, Dialog, DialogTitle, DialogContent, TextField, DialogActions, DialogContentText, Link } from '@mui/material';
+import { useLocation, Link as RouterLink } from 'react-router-dom'; // RouterLinkをインポート
+import { Box, Typography, Button, Container, Stack, Paper, Dialog, DialogTitle, DialogContent, TextField, DialogActions, DialogContentText, Link, Divider } from '@mui/material'; // Dividerをインポート
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import HandshakeIcon from '@mui/icons-material/Handshake';
 import ScienceIcon from '@mui/icons-material/Science';
@@ -9,18 +8,14 @@ import apiClient from '@/api/client';
 
 export const LoginPage = () => {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-  
-  // ★★★★★ ここからが修正箇所です ★★★★★
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
-  // ★★★★★ ここまで ★★★★★
 
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleLogin = (role: 'owner' | 'supporter' | 'tester') => {
-    // ★★★★★ リダイレクトパスを認証URLに追加 ★★★★★
     const redirectPath = encodeURIComponent(from);
     window.location.href = `${apiBaseUrl}/auth/discord?role=${role}&redirectPath=${redirectPath}`;
   };
@@ -80,15 +75,30 @@ export const LoginPage = () => {
         </Paper>
 
         <Box component="footer" sx={{ mt: 4 }}>
-          <Link
-            href="https://komoju.com/scta/51icu6fab5vynnmz4yfjmvcdj"
-            target="_blank"
-            rel="noopener noreferrer"
-            variant="body2"
-            color="text.secondary"
+          <Stack
+            direction="row"
+            spacing={2}
+            divider={<Divider orientation="vertical" flexItem />}
+            justifyContent="center"
           >
-            特定商取引法に基づく表記
-          </Link>
+            <Link
+              component={RouterLink}
+              to="/contact"
+              variant="body2"
+              color="text.secondary"
+            >
+              お問い合わせ窓口
+            </Link>
+            <Link
+              href="https://komoju.com/scta/51icu6fab5vynnmz4yfjmvcdj"
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="body2"
+              color="text.secondary"
+            >
+              特定商取引法に基づく表記
+            </Link>
+          </Stack>
         </Box>
 
         <Dialog open={open} onClose={handleClose}>
