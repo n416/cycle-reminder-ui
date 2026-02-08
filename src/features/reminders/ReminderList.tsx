@@ -34,6 +34,8 @@ import apiClient from '@/api/client';
 import { ServerSettingsModal } from '../servers/ServerSettingsModal';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { useServerPermission } from '@/hooks/useServerPermission';
+import { ImportExportModal } from './ImportExportModal';
+import ImportExportIcon from '@mui/icons-material/ImportExport';
 
 const getServerIconUrl = (server: Server): string | null => {
   if (server.customIcon) return server.customIcon;
@@ -126,6 +128,7 @@ export const ReminderList = () => {
   const currentServer = servers.find(s => s.id === serverId);
 
   const { canCreate, canEdit, canManageServerSettings, canViewLogs, isLockedByPassword } = useServerPermission(serverId);
+  const [isImportExportOpen, setIsImportExportOpen] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -295,6 +298,16 @@ export const ReminderList = () => {
           </Stack>
           <Stack direction="row" spacing={1} alignSelf={{ xs: 'flex-end', sm: 'center' }}>
             {isLockedByPassword && <Button variant="outlined" startIcon={<LockOpenIcon />} onClick={() => setIsPasswordDialogOpen(true)} color="warning">編集ロックを解除</Button>}
+            {canEdit && (
+              <Button 
+                variant="outlined" 
+                startIcon={<ImportExportIcon />} 
+                onClick={() => setIsImportExportOpen(true)}
+                color="secondary"
+              >
+                インポート/エクスポート
+              </Button>
+            )}
             {canViewLogs && <Button component={Link} to={`/servers/${serverId}/log`} variant="outlined" startIcon={<HistoryIcon />}>操作ログ</Button>}
           </Stack>
         </Stack>
@@ -323,6 +336,13 @@ export const ReminderList = () => {
       </Menu>
 
       <ServerSettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} server={currentServer ?? null} />
+      <ImportExportModal
+        open={isImportExportOpen}
+        onClose={() => setIsImportExportOpen(false)}
+        reminders={reminders}
+        serverId={serverId || ''}
+      />
+        
 
       <Dialog open={isPasswordDialogOpen} onClose={() => setIsPasswordDialogOpen(false)}>
         <DialogTitle>パスワード認証</DialogTitle>
