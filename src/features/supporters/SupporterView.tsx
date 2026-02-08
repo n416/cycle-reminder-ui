@@ -112,7 +112,7 @@ export const SupporterView = () => {
   const [showHelpOnLoad, setShowHelpOnLoad] = useLocalStorage('supporter-help-on-load', true);
   const hasShownHelp = useRef(false);
   
-  const canView = isAuthChecked && userRole === 'supporter' && currentServer?.serverType === 'hit_the_world' && !!writeToken;
+  const canView = isAuthChecked && (userRole === 'supporter' || userRole === 'owner' || userRole === 'tester') && currentServer?.serverType === 'hit_the_world' && !!writeToken;
 
   useEffect(() => {
     // 認証完了後、まだ表示しておらず、かつユーザーが表示を望んでいる場合に一度だけ表示
@@ -147,10 +147,11 @@ export const SupporterView = () => {
   // このページ専用のアクセス制御とデータ取得
   useEffect(() => {
     if (serversStatus === 'succeeded' && userRole !== 'unknown') {
-      const isSupporter = userRole === 'supporter';
+      // サポーターだけでなく、オーナーやテスターも閲覧可能にする
+      const isAuthorized = userRole === 'supporter' || userRole === 'owner' || userRole === 'tester';
       const isHitServer = currentServer?.serverType === 'hit_the_world';
 
-      if (!isSupporter || !isHitServer) {
+      if (!isAuthorized || !isHitServer) {
         navigate('/servers', { replace: true });
         return;
       }

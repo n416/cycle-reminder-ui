@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  TextField, Tabs, Tab, Box, Typography, Alert, Stack, IconButton
+  TextField, Tabs, Tab, Box, Alert, Stack, IconButton
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -25,7 +25,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({ open, onCl
 
   // エクスポート用にIDとServerIDを除外したデータを生成
   const exportData = JSON.stringify(
-    reminders.map(({ id, serverId, ...rest }) => rest),
+    reminders.map(({ id, serverId, nextNotificationTime, ...rest }) => rest),
     null,
     2
   );
@@ -39,7 +39,10 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({ open, onCl
     if (!importText) return;
     setIsImporting(true);
     try {
-      const parsed = JSON.parse(importText);
+      // ★ 修正点1: コピペ時の不可視文字（NBSP等）を通常のスペースに置換してパースエラーを防ぐ
+      const cleanedJson = importText.replace(/[\u00A0\u3000]/g, ' ');
+
+      const parsed = JSON.parse(cleanedJson);
       if (!Array.isArray(parsed)) {
         throw new Error('データ形式が正しくありません（配列である必要があります）');
       }
@@ -49,9 +52,14 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({ open, onCl
         // 最低限のバリデーション
         if (!item.message || !item.startTime) continue;
 
-        // IDやServerIDが含まれていても、addNewReminderの型定義(Omit)により無視されるか、
-        // 意図的に除外して渡す
-        const { id, serverId: _sid, ...newReminderData } = item;
+        // ★ 修正点2: 不要なフィールド（ID, ServerID, 計算済みの通知時刻）を明示的に除外
+        // Firestoreのタイムスタンプ形式などが混入するとエラーの原因になるため
+        const { 
+          id, 
+          serverId: _sid, 
+          nextNotificationTime: _nnt, 
+          ...newReminderData 
+        } = item;
 
         await dispatch(addNewReminder({ 
           serverId, 
@@ -64,7 +72,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({ open, onCl
       setImportText('');
       onClose();
     } catch (error) {
-      console.error(error);
+      console.error("Import Failed:", error);
       dispatch(showToast({ message: 'インポートに失敗しました。JSON形式を確認してください。', severity: 'error' }));
     } finally {
       setIsImporting(false);
