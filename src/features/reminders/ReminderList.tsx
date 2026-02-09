@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
-// ★★★★★ ここからが修正箇所です ★★★★★
-import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder, testSendReminder } from './remindersSlice.ts';
-// ★★★★★ ここまで ★★★★★
+import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder, testSendReminder, reorderReminders } from './remindersSlice.ts';
 import { selectAllServers, getServersStatus, Server } from '@/features/servers/serversSlice';
 import { setWriteToken } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice.ts';
@@ -28,14 +26,34 @@ import SendIcon from '@mui/icons-material/Send';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { EditReminderForm } from './EditReminderForm.tsx';
 import apiClient from '@/api/client';
 import { ServerSettingsModal } from '../servers/ServerSettingsModal';
-import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { useServerPermission } from '@/hooks/useServerPermission';
 import { ImportExportModal } from './ImportExportModal';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
+
+// Dnd Kit Imports
+import {
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const getServerIconUrl = (server: Server): string | null => {
   if (server.customIcon) return server.customIcon;
@@ -115,12 +133,111 @@ const formatNextOccurrence = (reminder: Reminder): string => {
   return new Intl.DateTimeFormat('ja-JP', dateTimeFormatOptions).format(date);
 };
 
+// --- Sortable Item Component ---
+interface SortableReminderItemProps {
+  reminder: Reminder;
+  isEditing: boolean;
+  onEditStart: () => void;
+  onEditCancel: () => void;
+  onTimeAdjust: (minutes: number) => void;
+  onMenuClick: (event: React.MouseEvent<HTMLElement>) => void;
+  canEdit: boolean;
+}
+
+const SortableReminderItem = ({ reminder, isEditing, onEditStart, onEditCancel, onTimeAdjust, onMenuClick, canEdit }: SortableReminderItemProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: reminder.id, disabled: isEditing }); // 編集時はドラッグ無効
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: 'relative' as const,
+    zIndex: isDragging ? 1000 : 'auto',
+  };
+
+  const isPaused = reminder.status === 'paused';
+  const displayMessage = reminder.message.replace(/\{\{\s*offset\s*\}\}/g, '').replace(/\{\{all\}\}/g, 'スケジュールすべて').trim();
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Accordion TransitionProps={{ unmountOnExit: true }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', pr: 1 }}>
+            {/* Drag Handle */}
+            {canEdit && (
+                <IconButton size="small" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} sx={{ cursor: 'grab' }}>
+                    <DragIndicatorIcon fontSize="small" color="action" />
+                </IconButton>
+            )}
+            
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 2 }} alignItems="stretch" sx={{ width: '100%' }}>
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ flexGrow: 1, minWidth: 0 }}>
+                {reminder.message.includes('{{all}}') ? <FormatListBulletedIcon color="primary" /> : <SpeakerNotesIcon color="action" />}
+                <Typography sx={{ textDecoration: isPaused ? 'line-through' : 'none', color: isPaused ? 'text.disabled' : 'text.primary', whiteSpace: { xs: 'normal', sm: 'nowrap' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {displayMessage.split('\n')[0]}
+                </Typography>
+                </Stack>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary', pl: { xs: '40px', sm: 0 }, flexShrink: 0 }}>
+                <EventAvailableIcon fontSize="small" />
+                <Typography variant="body2" noWrap>{formatNextOccurrence(reminder)}</Typography>
+                </Stack>
+            </Stack>
+          </Stack>
+        </AccordionSummary>
+        <AccordionDetails sx={{ p: 0 }}>
+          {isEditing ? (
+            <Box sx={{ p: { xs: 1, sm: 2 } }}><EditReminderForm reminder={reminder} onCancel={onEditCancel} /></Box>
+          ) : (
+            <Stack>
+              <Box sx={{ p: 2, bgcolor: 'action.hover', margin: 2 }}><Typography sx={{ whiteSpace: 'pre-wrap' }}>{displayMessage}</Typography></Box>
+              <Box sx={{ p: { xs: 1, sm: 2 } }}>
+                <Divider sx={{ my: 2 }} />
+                <Stack spacing={1.5}>
+                  <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" fontSize="small" /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
+                  <Stack direction="row" alignItems="flex-start" spacing={1.5}>
+                    <CalendarMonthIcon color="action" fontSize="small" sx={{ mt: '4px' }} />
+                    <Stack sx={{ width: '100%' }}>
+                      <Typography variant="body2" color="text.secondary">起点日時</Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>{formatStartTime(reminder.startTime)}</Typography>
+                      {canEdit && (
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
+                          <Box><Typography variant="caption" color="text.secondary">進める</Typography><Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>{[1, 5, 10].map((min) => <Button key={`fwd-${min}`} size="small" variant="contained" onClick={() => onTimeAdjust(min)}>{min}分</Button>)}</Stack></Box>
+                          <Box><Typography variant="caption" color="text.secondary">戻す</Typography><Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>{[-1, -5, -10].map((min) => <Button key={`back-${min}`} size="small" variant="contained" onClick={() => onTimeAdjust(min)}>{Math.abs(min)}分</Button>)}</Stack></Box>
+                        </Stack>
+                      )}
+                    </Stack>
+                  </Stack>
+                  <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" fontSize="small" /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
+                </Stack>
+                <Divider sx={{ my: 2 }} />
+                <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                  {canEdit && <Button variant="outlined" startIcon={<EditIcon />} onClick={onEditStart}>編集</Button>}
+                  <IconButton aria-label="その他のアクション" onClick={onMenuClick}><MoreVertIcon /></IconButton>
+                </Stack>
+              </Box>
+            </Stack>
+          )}
+        </AccordionDetails>
+      </Accordion>
+    </div>
+  );
+};
+
+
 export const ReminderList = () => {
   const { serverId } = useParams<{ serverId: string }>();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
-  const reminders = useAppSelector(selectAllReminders);
+  // Redux state
+  const remindersFromStore = useAppSelector(selectAllReminders);
   const remindersStatus = useAppSelector(getRemindersStatus);
   const error = useAppSelector(state => state.reminders.error);
   const servers = useAppSelector(selectAllServers);
@@ -128,8 +245,9 @@ export const ReminderList = () => {
   const currentServer = servers.find(s => s.id === serverId);
 
   const { canCreate, canEdit, canManageServerSettings, canViewLogs, isLockedByPassword } = useServerPermission(serverId);
-  const [isImportExportOpen, setIsImportExportOpen] = useState(false);
 
+  // Local state
+  const [localReminders, setLocalReminders] = useState<Reminder[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [currentReminderId, setCurrentReminderId] = useState<null | string>(null);
@@ -138,16 +256,59 @@ export const ReminderList = () => {
   const [password, setPassword] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState('');
+  const [isImportExportOpen, setIsImportExportOpen] = useState(false);
 
   const serverName = currentServer?.customName || currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
   const isMenuOpen = Boolean(menuAnchorEl);
 
+  // DnD Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Fetch reminders
   useEffect(() => {
     if (serverId) {
       dispatch(fetchReminders(serverId));
     }
   }, [serverId, dispatch]);
+
+  // Sync local state with Redux store when fetched
+  useEffect(() => {
+    if (remindersStatus === 'succeeded') {
+      setLocalReminders(remindersFromStore);
+    }
+  }, [remindersFromStore, remindersStatus]);
+
+  // Handle Drag End
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setLocalReminders((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        
+        // Prepare API payload: [{ id, order }, ...]
+        const updates = newItems.map((item, index) => ({
+            id: item.id,
+            order: index
+        }));
+
+        // Call API to save new order
+        if (serverId && canEdit) {
+            dispatch(reorderReminders({ serverId, reminders: updates }));
+        }
+
+        return newItems;
+      });
+    }
+  };
 
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>, reminderId: string) => {
     setMenuAnchorEl(event.currentTarget);
@@ -158,7 +319,6 @@ export const ReminderList = () => {
     setCurrentReminderId(null);
   };
 
-  // ★★★★★ ここからが新しく追加・修正した箇所です ★★★★★
   const handleTestSend = async (reminder: Reminder) => {
     if (!canEdit) {
       dispatch(showToast({ message: 'テスト送信の権限がありません。', severity: 'error' }));
@@ -176,8 +336,6 @@ export const ReminderList = () => {
       dispatch(showToast({ message: 'テスト送信に失敗しました。', severity: 'error' }));
     }
   };
-  // ★★★★★ ここまで ★★★★★
-
 
   const handleTimeAdjust = async (reminder: Reminder, minutes: number) => {
     const originalDate = new Date(reminder.startTime);
@@ -219,71 +377,38 @@ export const ReminderList = () => {
   } else if (remindersStatus === 'failed') {
     content = <Typography color="error">エラー: {error}</Typography>;
   } else if (remindersStatus === 'succeeded') {
-    content = reminders.length > 0 ? (
-      reminders.map((reminder) => {
-        const isEditing = editingId === reminder.id;
-        const isPaused = reminder.status === 'paused';
-        const displayMessage = reminder.message.replace(/\{\{\s*offset\s*\}\}/g, '').replace(/\{\{all\}\}/g, 'スケジュールすべて').trim();
-
-        return (
-          <Accordion key={reminder.id} TransitionProps={{ unmountOnExit: true }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 2 }} alignItems="stretch" sx={{ width: '100%', pr: { sm: 1 } }}>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ flexGrow: 1, minWidth: 0 }}>
-                  {reminder.message.includes('{{all}}') ? <FormatListBulletedIcon color="primary" /> : <SpeakerNotesIcon color="action" />}
-                  <Typography sx={{ textDecoration: isPaused ? 'line-through' : 'none', color: isPaused ? 'text.disabled' : 'text.primary', whiteSpace: { xs: 'normal', sm: 'nowrap' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {displayMessage.split('\n')[0]}
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary', pl: { xs: '40px', sm: 0 }, flexShrink: 0 }}>
-                  <EventAvailableIcon fontSize="small" />
-                  <Typography variant="body2" noWrap>{formatNextOccurrence(reminder)}</Typography>
-                </Stack>
-              </Stack>
-            </AccordionSummary>
-            <AccordionDetails sx={{ p: 0 }}>
-              {isEditing ? (
-                <Box sx={{ p: { xs: 1, sm: 2 } }}><EditReminderForm reminder={reminder} onCancel={() => setEditingId(null)} /></Box>
-              ) : (
-                <Stack>
-                  <Box sx={{ p: 2, bgcolor: 'action.hover', margin: 2 }}><Typography sx={{ whiteSpace: 'pre-wrap' }}>{displayMessage}</Typography></Box>
-                  <Box sx={{ p: { xs: 1, sm: 2 } }}>
-                    <Divider sx={{ my: 2 }} />
-                    <Stack spacing={1.5}>
-                      <Stack direction="row" alignItems="center" spacing={1.5}><TagIcon color="action" fontSize="small" /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>チャンネル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{reminder.channel}</Typography></Stack>
-                      <Stack direction="row" alignItems="flex-start" spacing={1.5}>
-                        <CalendarMonthIcon color="action" fontSize="small" sx={{ mt: '4px' }} />
-                        <Stack sx={{ width: '100%' }}>
-                          <Typography variant="body2" color="text.secondary">起点日時</Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>{formatStartTime(reminder.startTime)}</Typography>
-                          {canEdit && (
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
-                              <Box><Typography variant="caption" color="text.secondary">進める</Typography><Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>{[1, 5, 10].map((min) => <Button key={`fwd-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{min}分</Button>)}</Stack></Box>
-                              <Box><Typography variant="caption" color="text.secondary">戻す</Typography><Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>{[-1, -5, -10].map((min) => <Button key={`back-${min}`} size="small" variant="contained" onClick={() => handleTimeAdjust(reminder, min)}>{Math.abs(min)}分</Button>)}</Stack></Box>
-                            </Stack>
-                          )}
-                        </Stack>
-                      </Stack>
-                      <Stack direction="row" alignItems="center" spacing={1.5}><AutorenewIcon color="action" fontSize="small" /><Typography variant="body2" color="text.secondary" sx={{ width: '80px', flexShrink: 0 }}>サイクル</Typography><Typography variant="body1" sx={{ fontWeight: 500 }}>{formatRecurrenceDetails(reminder)}</Typography></Stack>
-                    </Stack>
-                    <Divider sx={{ my: 2 }} />
-                    <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
-                      {canEdit && <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setEditingId(reminder.id)}>編集</Button>}
-                      <IconButton aria-label="その他のアクション" onClick={(e) => handleMenuClick(e, reminder.id)}><MoreVertIcon /></IconButton>
-                    </Stack>
-                  </Box>
-                </Stack>
-              )}
-            </AccordionDetails>
-          </Accordion>
-        );
-      })
+    content = localReminders.length > 0 ? (
+      <DndContext 
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext 
+          items={localReminders.map(r => r.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <Stack spacing={1.5}>
+            {localReminders.map((reminder) => (
+              <SortableReminderItem
+                key={reminder.id}
+                reminder={reminder}
+                isEditing={editingId === reminder.id}
+                canEdit={canEdit}
+                onEditStart={() => setEditingId(reminder.id)}
+                onEditCancel={() => setEditingId(null)}
+                onTimeAdjust={(min) => handleTimeAdjust(reminder, min)}
+                onMenuClick={(e) => handleMenuClick(e, reminder.id)}
+              />
+            ))}
+          </Stack>
+        </SortableContext>
+      </DndContext>
     ) : (
       <Typography sx={{ mt: 4, textAlign: 'center' }}>このサーバーにはリマインダーはまだありません。</Typography>
     );
   }
 
-  const selectedReminder = reminders.find(r => r.id === currentReminderId);
+  const selectedReminder = localReminders.find(r => r.id === currentReminderId);
 
   return (
     <>
@@ -313,7 +438,7 @@ export const ReminderList = () => {
         </Stack>
       )}
 
-      <Stack spacing={1.5}>{content}</Stack>
+      {content}
 
       {canCreate && <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={() => navigate(`/servers/${serverId}/add`)}><AddIcon /></Fab>}
 
@@ -336,13 +461,6 @@ export const ReminderList = () => {
       </Menu>
 
       <ServerSettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} server={currentServer ?? null} />
-      <ImportExportModal
-        open={isImportExportOpen}
-        onClose={() => setIsImportExportOpen(false)}
-        reminders={reminders}
-        serverId={serverId || ''}
-      />
-        
 
       <Dialog open={isPasswordDialogOpen} onClose={() => setIsPasswordDialogOpen(false)}>
         <DialogTitle>パスワード認証</DialogTitle>
@@ -355,6 +473,13 @@ export const ReminderList = () => {
           <Button onClick={handlePasswordSubmit} disabled={isVerifying}>{isVerifying ? '確認中...' : '認証'}</Button>
         </DialogActions>
       </Dialog>
+
+      <ImportExportModal
+        open={isImportExportOpen}
+        onClose={() => setIsImportExportOpen(false)}
+        reminders={localReminders}
+        serverId={serverId || ''}
+      />
     </>
   );
 };

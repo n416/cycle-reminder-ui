@@ -23,6 +23,7 @@ export interface Reminder {
   hideNextTime?: boolean;
   notificationOffsets?: number[];
   nextOffsetIndex?: number;
+  order?: number;
 }
 interface RemindersState {
   reminders: Reminder[];
@@ -111,6 +112,18 @@ export const testSendReminder = createAsyncThunk(
 );
 // ★★★★★ ここまで ★★★★★
 
+
+
+export const reorderReminders = createAsyncThunk(
+  'reminders/reorder',
+  async ({ serverId, reminders }: { serverId: string; reminders: { id: string; order: number }[] }, thunkAPI) => {
+    const writeToken = await ensureWriteToken(serverId, thunkAPI);
+    await apiClient.put(`/reminders/${serverId}/reorder`, { reminders }, {
+      headers: { 'x-write-token': writeToken }
+    });
+    return reminders;
+  }
+);
 
 export const addDailySummaryReminder = createAsyncThunk(
   'reminders/addDailySummary',
