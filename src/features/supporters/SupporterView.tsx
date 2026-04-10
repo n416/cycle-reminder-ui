@@ -8,7 +8,7 @@ import { showToast } from '@/features/toast/toastSlice';
 import {
   Box, Container, Typography, Paper, Stack, Button, CircularProgress, AppBar, Toolbar, IconButton,
   Dialog, DialogTitle, DialogContent, DialogContentText, TextField, DialogActions, useTheme, useMediaQuery,
-  MobileStepper, FormControlLabel, Checkbox
+  MobileStepper, FormControlLabel, Checkbox, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -111,7 +111,24 @@ export const SupporterView = () => {
   const [activeHelpStep, setActiveHelpStep] = useState(0); 
   const [showHelpOnLoad, setShowHelpOnLoad] = useLocalStorage('supporter-help-on-load', true);
   const hasShownHelp = useRef(false);
-  
+
+  const [bossSortType, setBossSortType] = useLocalStorage<'time' | 'standard'>('boss_list_sort', 'time');
+
+  const getNextTime = (reminder: Reminder): number => {
+    if (reminder.recurrence.type !== 'interval') return Infinity;
+    const startObj = new Date(reminder.startTime);
+    if(isNaN(startObj.getTime())) return Infinity;
+    const start = startObj.getTime();
+    const now = Date.now();
+    const intervalMs = reminder.recurrence.hours * 60 * 60 * 1000;
+    if (intervalMs <= 0) return Infinity;
+
+    let next = start;
+    while (next <= now) {
+      next += intervalMs;
+    }
+    return next;
+  };
   const canView = isAuthChecked && (userRole === 'supporter' || userRole === 'owner' || userRole === 'tester') && currentServer?.serverType === 'hit_the_world' && !!writeToken;
 
   useEffect(() => {
@@ -300,6 +317,9 @@ export const SupporterView = () => {
   };
 
   const bossReminders = reminders.filter(isBossReminder);
+  const displayedBossReminders = bossSortType === 'time' 
+    ? [...bossReminders].sort((a, b) => getNextTime(a) - getNextTime(b))
+    : bossReminders;
   
   const handleHelpNext = () => setActiveHelpStep((prev) => prev + 1);
   const handleHelpBack = () => setActiveHelpStep((prev) => prev - 1);
@@ -334,9 +354,29 @@ export const SupporterView = () => {
             ) : (
               <Stack spacing={2}>
                 <Typography variant="h5" align="center" gutterBottom>{currentServer.customName || currentServer.name}</Typography>
-                {bossReminders.length > 0 ? bossReminders.map(reminder => (
+                <Stack direction="row" justifyContent="center" sx={{ mb: 2 }}>
+                  <ToggleButtonGroup
+                    value={bossSortType}
+                    exclusive
+                    onChange={(_e, val) => {
+                      if (val !== null) setBossSortType(val as 'time' | 'standard');
+                    }}
+                    size="small"
+                  >
+                    <ToggleButton value="time">時刻順</ToggleButton>
+                    <ToggleButton value="standard">標準</ToggleButton>
+                  </ToggleButtonGroup>
+                </Stack>
+                {displayedBossReminders.length > 0 ? displayedBossReminders.map(reminder => (
                   <Paper key={reminder.id} variant="outlined" sx={{ p: 2 }}>
-                    <Typography variant="h6" gutterBottom>{reminder.message.replace('{{offset}}', '').trim()}</Typography>
+                    <Typography variant="h6" gutterBottom>
+                      {reminder.message.replace('{{offset}}', '').trim()}
+                      {bossSortType === 'time' && getNextTime(reminder) !== Infinity && (
+                        <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                          （次回 {new Intl.DateTimeFormat('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(getNextTime(reminder)))}）
+                        </Typography>
+                      )}
+                    </Typography>
                     <Stack spacing={0}>
                       <Box>
                         <Typography variant="body2" color="text.secondary">現在の討伐日時 (起点)</Typography>
