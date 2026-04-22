@@ -35,6 +35,7 @@ import { ServerSettingsModal } from '../servers/ServerSettingsModal';
 import { useServerPermission } from '@/hooks/useServerPermission';
 import { ImportExportModal } from './ImportExportModal';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
+import { useTimeAdjustment } from '@/hooks/useTimeAdjustment';
 
 // Dnd Kit Imports
 import {
@@ -142,9 +143,10 @@ interface SortableReminderItemProps {
   onTimeAdjust: (minutes: number) => void;
   onMenuClick: (event: React.MouseEvent<HTMLElement>) => void;
   canEdit: boolean;
+  optimisticStartTime: string;
 }
 
-const SortableReminderItem = ({ reminder, isEditing, onEditStart, onEditCancel, onTimeAdjust, onMenuClick, canEdit }: SortableReminderItemProps) => {
+const SortableReminderItem = ({ reminder, isEditing, onEditStart, onEditCancel, onTimeAdjust, onMenuClick, canEdit, optimisticStartTime }: SortableReminderItemProps) => {
   const {
     attributes,
     listeners,
@@ -205,7 +207,7 @@ const SortableReminderItem = ({ reminder, isEditing, onEditStart, onEditCancel, 
                     <CalendarMonthIcon color="action" fontSize="small" sx={{ mt: '4px' }} />
                     <Stack sx={{ width: '100%' }}>
                       <Typography variant="body2" color="text.secondary">起点日時</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>{formatStartTime(reminder.startTime)}</Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>{formatStartTime(optimisticStartTime)}</Typography>
                       {canEdit && (
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
                           <Box><Typography variant="caption" color="text.secondary">進める</Typography><Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>{[1, 5, 10].map((min) => <Button key={`fwd-${min}`} size="small" variant="contained" onClick={() => onTimeAdjust(min)}>{min}分</Button>)}</Stack></Box>
@@ -258,6 +260,8 @@ export const ReminderList = () => {
   const [verificationError, setVerificationError] = useState('');
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [fabAnchorEl, setFabAnchorEl] = useState<null | HTMLElement>(null);
+
+  const { adjustTime: handleTimeAdjust, getOptimisticStartTime } = useTimeAdjustment();
 
   const serverName = currentServer?.customName || currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
@@ -359,21 +363,6 @@ export const ReminderList = () => {
     }
   };
 
-  const handleTimeAdjust = async (reminder: Reminder, minutes: number) => {
-    const originalDate = new Date(reminder.startTime);
-    if (isNaN(originalDate.getTime())) return;
-    const newDate = new Date(originalDate.getTime() + minutes * 60000);
-    const updatedReminder = { ...reminder, startTime: newDate.toISOString() };
-
-    try {
-      await dispatch(updateExistingReminder(updatedReminder)).unwrap();
-      const action = minutes > 0 ? '進めました' : '戻しました';
-      dispatch(showToast({ message: `起点日時を ${Math.abs(minutes)} 分 ${action}。`, severity: 'success' }));
-    } catch (error) {
-      dispatch(showToast({ message: '日時の更新に失敗しました。', severity: 'error' }));
-    }
-  };
-
   const handlePasswordSubmit = async () => {
     if (!serverId) return;
     setIsVerifying(true);
@@ -416,6 +405,7 @@ export const ReminderList = () => {
                 reminder={reminder}
                 isEditing={editingId === reminder.id}
                 canEdit={canEdit}
+                optimisticStartTime={getOptimisticStartTime(reminder)}
                 onEditStart={() => setEditingId(reminder.id)}
                 onEditCancel={() => setEditingId(null)}
                 onTimeAdjust={(min) => handleTimeAdjust(reminder, min)}

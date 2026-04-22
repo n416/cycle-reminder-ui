@@ -23,7 +23,7 @@ import TonalityIcon from '@mui/icons-material/Tonality';
 import { useColorMode } from '@/components/ThemeRegistry';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import useLocalStorage from '@/hooks/useLocalStorage';
-
+import { useTimeAdjustment } from '@/hooks/useTimeAdjustment';
 
 // ボスリマインダーかどうかを判定するロジック
 const isBossReminder = (reminder: Reminder) => {
@@ -114,6 +114,8 @@ export const SupporterView = () => {
 
   const [bossSortType, setBossSortType] = useLocalStorage<'time' | 'standard'>('boss_list_sort', 'time');
 
+  const { adjustTime: handleTimeAdjust, getOptimisticStartTime } = useTimeAdjustment();
+
   const getNextTime = (reminder: Reminder): number => {
     if (reminder.recurrence.type !== 'interval') return Infinity;
     const startObj = new Date(reminder.startTime);
@@ -195,23 +197,6 @@ export const SupporterView = () => {
       checkAuthAndFetchData();
     }
   }, [serversStatus, userRole, currentServer, navigate, serverId, dispatch, writeToken]);
-
-  // 時刻調整処理
-  const handleTimeAdjust = async (reminder: Reminder, minutes: number) => {
-    const originalDate = new Date(reminder.startTime);
-    if (isNaN(originalDate.getTime())) return;
-    
-    const newDate = new Date(originalDate.getTime() + minutes * 60000);
-    const updatedReminder = { ...reminder, startTime: newDate.toISOString() };
-
-    try {
-      await dispatch(updateExistingReminder(updatedReminder)).unwrap();
-      const action = minutes > 0 ? '進めました' : '戻しました';
-      dispatch(showToast({ message: `起点日時を ${Math.abs(minutes)} 分 ${action}。`, severity: 'success' }));
-    } catch (error) {
-      dispatch(showToast({ message: '日時の更新に失敗しました。', severity: 'error' }));
-    }
-  };
   
   // ログアウト処理
   const handleLogout = () => {
@@ -380,7 +365,7 @@ export const SupporterView = () => {
                     <Stack spacing={0}>
                       <Box>
                         <Typography variant="body2" color="text.secondary">現在の討伐日時 (起点)</Typography>
-                        <Typography variant="h5" component="p">{formatStartTime(reminder.startTime)}</Typography>
+                        <Typography variant="h5" component="p">{formatStartTime(getOptimisticStartTime(reminder))}</Typography>
                       </Box>
                       <Stack spacing={1.5} alignItems="flex-start" sx={{ width: '100%', mt: 2 }}>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1.5, sm: 2 }}>
