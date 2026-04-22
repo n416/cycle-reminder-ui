@@ -172,7 +172,7 @@ const SortableReminderItem = ({ reminder, isEditing, onEditStart, onEditCancel, 
           <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', pr: 1 }}>
             {/* Drag Handle */}
             {canEdit && (
-                <IconButton size="small" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} sx={{ cursor: 'grab' }}>
+                <IconButton component="div" size="small" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} sx={{ cursor: 'grab' }}>
                     <DragIndicatorIcon fontSize="small" color="action" />
                 </IconButton>
             )}
@@ -257,6 +257,7 @@ export const ReminderList = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState('');
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
+  const [fabAnchorEl, setFabAnchorEl] = useState<null | HTMLElement>(null);
 
   const serverName = currentServer?.customName || currentServer?.name || '';
   const serverIconUrl = currentServer ? getServerIconUrl(currentServer) : null;
@@ -317,6 +318,27 @@ export const ReminderList = () => {
   const handleMenuClose = () => {
     setMenuAnchorEl(null);
     setCurrentReminderId(null);
+  };
+
+  const handleFabClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (currentServer?.serverType === 'hit_the_world') {
+      setFabAnchorEl(event.currentTarget);
+    } else {
+      navigate(`/servers/${serverId}/add`);
+    }
+  };
+
+  const handleFabClose = () => {
+    setFabAnchorEl(null);
+  };
+
+  const handleAddSpecial = (type: string) => {
+    handleFabClose();
+    if (type === 'normal') {
+        navigate(`/servers/${serverId}/add`);
+    } else {
+        navigate(`/servers/${serverId}/add?type=${type}`);
+    }
   };
 
   const handleTestSend = async (reminder: Reminder) => {
@@ -440,7 +462,25 @@ export const ReminderList = () => {
 
       {content}
 
-      {canCreate && <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={() => navigate(`/servers/${serverId}/add`)}><AddIcon /></Fab>}
+      {canCreate && (
+        <>
+          <Fab color="primary" sx={{ position: 'fixed', bottom: 32, right: 32 }} onClick={handleFabClick}>
+            <AddIcon />
+          </Fab>
+          <Menu anchorEl={fabAnchorEl} open={Boolean(fabAnchorEl)} onClose={handleFabClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }} transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+            <MenuItem onClick={() => handleAddSpecial('boss')}>
+              <ListItemText primary="ボスリマインダーを追加" secondary="20時間周期のボス用" />
+            </MenuItem>
+            <MenuItem onClick={() => handleAddSpecial('hydra')}>
+              <ListItemText primary="ヒュドラリマインダーを追加" secondary="特殊スケジュール用" />
+            </MenuItem>
+            <Divider />
+            <MenuItem onClick={() => handleAddSpecial('normal')}>
+              <ListItemText primary="通常リマインダーを追加" secondary="カスタム設定" />
+            </MenuItem>
+          </Menu>
+        </>
+      )}
 
       <Menu anchorEl={menuAnchorEl} open={isMenuOpen} onClose={handleMenuClose}>
         {selectedReminder && (
