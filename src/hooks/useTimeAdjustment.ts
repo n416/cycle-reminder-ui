@@ -5,15 +5,20 @@ import { showToast } from '@/features/toast/toastSlice';
 
 export const useTimeAdjustment = () => {
   const dispatch = useAppDispatch();
+  // UI即時反映用のState
   const [pendingAdjustments, setPendingAdjustments] = useState<Record<string, number>>({});
+  // 実際の蓄積値（setTimeout内で同期的に読み取るため）
+  const pendingRefs = useRef<Record<string, number>>({});
   const timeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
 
   const adjustTime = useCallback((reminder: Reminder, minutes: number) => {
-    setPendingAdjustments((prev) => {
-      const currentPending = prev[reminder.id] || 0;
-      const newPending = currentPending + minutes;
-      return { ...prev, [reminder.id]: newPending };
-    });
+    // Refsを更新
+    const currentRefPending = pendingRefs.current[reminder.id] || 0;
+    const newPending = currentRefPending + minutes;
+    pendingRefs.current[reminder.id] = newPending;
+
+    // UI用Stateを更新
+    setPendingAdjustments((prev) => ({ ...prev, [reminder.id]: newPending }));
 
     if (timeoutRefs.current[reminder.id]) {
       clearTimeout(timeoutRefs.current[reminder.id]);
@@ -21,9 +26,11 @@ export const useTimeAdjustment = () => {
 
     timeoutRefs.current[reminder.id] = setTimeout(async () => {
       // Execute the accumulated update after 1 second of inactivity
-      let finalMinutes = 0;
+      const finalMinutes = pendingRefs.current[reminder.id] || 0;
+      
+      // 値をリセット
+      delete pendingRefs.current[reminder.id];
       setPendingAdjustments((prev) => {
-        finalMinutes = prev[reminder.id] || 0;
         const next = { ...prev };
         delete next[reminder.id];
         return next;
