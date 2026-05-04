@@ -106,13 +106,24 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
   const [startTimeValue, setStartTimeValue] = useState<Date | null>(initialDate);
   // ★★★★★ ここまで ★★★★★
 
-  const [offsets, setOffsets] = useState(reminder?.notificationOffsets?.join(', ') || '0');
+  // APIからJSON文字列として返ってくるケースへの対応（Drizzle+D1の仕様）
+  const parseJsonField = (field: any, fallback: any) => {
+    if (typeof field === 'string') {
+      try { return JSON.parse(field); } catch (e) { return fallback; }
+    }
+    return field || fallback;
+  };
 
+  const safeOffsets = parseJsonField(reminder?.notificationOffsets, [0]);
+  const safeRecurrence = parseJsonField(reminder?.recurrence, { type: 'none' });
+  const safeEmojis = parseJsonField(reminder?.selectedEmojis, []);
 
-  const [recurrenceType, setRecurrenceType] = useState(reminder?.recurrence.type || 'none');
-  const [weeklyDays, setWeeklyDays] = useState(reminder?.recurrence.type === 'weekly' ? reminder.recurrence.days : []);
-  const [intervalHours, setIntervalHours] = useState(reminder?.recurrence.type === 'interval' ? reminder.recurrence.hours : 1);
-  const [selectedEmojis, setSelectedEmojis] = useState<string[]>(reminder?.selectedEmojis || []);
+  const [offsets, setOffsets] = useState(safeOffsets.join(', '));
+
+  const [recurrenceType, setRecurrenceType] = useState(safeRecurrence.type || 'none');
+  const [weeklyDays, setWeeklyDays] = useState(safeRecurrence.type === 'weekly' ? safeRecurrence.days : []);
+  const [intervalHours, setIntervalHours] = useState(safeRecurrence.type === 'interval' ? safeRecurrence.hours : 1);
+  const [selectedEmojis, setSelectedEmojis] = useState<string[]>(safeEmojis);
 
   const [hideNextTime, setHideNextTime] = useState(reminder?.hideNextTime ?? false);
 
