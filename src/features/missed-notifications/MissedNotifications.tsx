@@ -45,7 +45,7 @@ export const MissedNotifications: React.FC<MissedNotificationsProps> = ({ server
         >
           <AlertTitle>リマインダーの送信に失敗しました</AlertTitle>
           <Typography variant="body2">
-            <strong>日時:</strong> {new Date(notification.missedAt.seconds * 1000).toLocaleString('ja-JP')}
+            <strong>日時:</strong> {new Date(notification.missedAt).toLocaleString('ja-JP')}
           </Typography>
           <Typography variant="body2">
             <strong>チャンネル:</strong> {notification.channelName}
