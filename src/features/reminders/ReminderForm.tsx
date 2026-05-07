@@ -176,8 +176,8 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
     const parsedOffsets = offsets
       .split(',')
-      .map(s => parseInt(s.trim(), 10))
-      .filter(n => !isNaN(n) && n >= 0);
+      .map((s: string) => parseInt(s.trim(), 10))
+      .filter((n: number) => !isNaN(n) && n >= 0);
 
 
     if (recurrenceType === 'weekly') {
@@ -238,9 +238,9 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
 
   const handleCalendarClick = (clickedDate: Date) => {
     const dayName = weekDays[clickedDate.getDay()];
-    setWeeklyDays((currentDays) => {
+    setWeeklyDays((currentDays: string[]) => {
       if (currentDays.includes(dayName)) {
-        return currentDays.filter(day => day !== dayName);
+        return currentDays.filter((day: string) => day !== dayName);
       } else {
         return [...currentDays, dayName];
       }
@@ -365,7 +365,7 @@ export const ReminderForm: React.FC<ReminderFormProps> = ({ mode, reminder, onSa
             input={<OutlinedInput />}
             renderValue={(selected) => {
               if (selected.length === 0) return <em>曜日を選択...</em>;
-              return selected.map((day) => weekDayMap[day]).join(', ');
+              return selected.map((day: string) => weekDayMap[day]).join(', ');
             }}
           >
             {Object.entries(weekDayMap).map(([key, value]) => (
