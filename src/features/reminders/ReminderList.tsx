@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/app/hooks.ts';
-import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, updateExistingReminder, testSendReminder, reorderReminders } from './remindersSlice.ts';
+import { selectAllReminders, getRemindersStatus, fetchReminders, deleteExistingReminder, toggleStatusAsync, Reminder, testSendReminder, reorderReminders } from './remindersSlice.ts';
 import { selectAllServers, getServersStatus, Server } from '@/features/servers/serversSlice';
 import { setWriteToken } from '@/features/auth/authSlice';
 import { showToast } from '@/features/toast/toastSlice.ts';
@@ -198,7 +198,14 @@ const SortableReminderItem = ({ reminder, isEditing, onEditStart, onEditCancel, 
             <Box sx={{ p: { xs: 1, sm: 2 } }}><EditReminderForm reminder={reminder} onCancel={onEditCancel} /></Box>
           ) : (
             <Stack>
-              <Box sx={{ p: 2, bgcolor: 'action.hover', margin: 2 }}><Typography sx={{ whiteSpace: 'pre-wrap' }}>{displayMessage}</Typography></Box>
+              <Box sx={{ p: 2, bgcolor: 'action.hover', margin: 2 }}>
+                <Typography sx={{ whiteSpace: 'pre-wrap' }}>{displayMessage}</Typography>
+                {reminder.notificationOffsets && reminder.notificationOffsets.length > 0 && reminder.notificationOffsets.some(o => o > 0) && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                    ※ 事前通知: {reminder.notificationOffsets.filter(o => o > 0).map(o => `${o}分前`).join(', ')}
+                  </Typography>
+                )}
+              </Box>
               <Box sx={{ p: { xs: 1, sm: 2 } }}>
                 <Divider sx={{ my: 2 }} />
                 <Stack spacing={1.5}>
@@ -356,6 +363,7 @@ export const ReminderList = () => {
         channelId: reminder.channelId,
         message: reminder.message,
         selectedEmojis: reminder.selectedEmojis,
+        notificationOffsets: reminder.notificationOffsets,
       })).unwrap();
       dispatch(showToast({ message: 'テスト送信しました！', severity: 'success' }));
     } catch (error) {

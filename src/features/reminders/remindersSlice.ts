@@ -22,6 +22,7 @@ export interface Reminder {
   selectedEmojis?: string[];
   hideNextTime?: boolean;
   notificationOffsets?: number[];
+  nextNotificationTime?: string;
   nextOffsetIndex?: number;
   order?: number;
 }
@@ -97,13 +98,14 @@ export const toggleStatusAsync = createAsyncThunk('reminders/toggleStatusAsync',
 // ★★★★★ ここからが新しく追加・修正した箇所です ★★★★★
 export const testSendReminder = createAsyncThunk(
   'reminders/testSend',
-  async (reminder: Pick<Reminder, 'serverId' | 'channelId' | 'message' | 'selectedEmojis'>, thunkAPI) => {
+  async (reminder: Pick<Reminder, 'serverId' | 'channelId' | 'message' | 'selectedEmojis' | 'notificationOffsets'>, thunkAPI) => {
     const writeToken = await ensureWriteToken(reminder.serverId, thunkAPI);
     await apiClient.post(`/reminders/${reminder.serverId}/test-send`,
       {
         channelId: reminder.channelId,
         message: reminder.message,
         selectedEmojis: reminder.selectedEmojis,
+        notificationOffsets: reminder.notificationOffsets,
       },
       { headers: { 'x-write-token': writeToken } }
     );

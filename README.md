@@ -48,9 +48,9 @@ src/features/
   VITE_API_BASE_URL=http://localhost:8080/api
   ```
 
-- **検証・本番環境の例** (`.env.local` やホスティング環境で設定)
+- **検証・本番環境の例** (Cloudflare Pagesダッシュボード、またはビルド時に設定)
   ```env
-  VITE_API_BASE_URL=https://cycle-reminder-api.fly.dev/api
+  VITE_API_BASE_URL=https://cycle-reminder-api.tobira-sys.workers.dev/api
   ```
 
 ※ `.env` ファイル等の環境変数を変更した場合は、開発サーバー（`npm run dev`）の再起動が必要です。
@@ -94,3 +94,15 @@ npm install
   npm run test
   ```
   Vitest を利用したテストを実行します。
+
+## デプロイ (Cloudflare Pages)
+
+UIは Cloudflare Pages にデプロイされています。
+ローカルから手動でデプロイする場合は、ビルド時に本番用のAPIエンドポイント環境変数を渡してビルドし、Wranglerでアップロードします。
+
+※`.env.production` などの機密情報を含むファイルをリポジトリで管理する運用は避けてください。
+
+**Windows (PowerShell) からの直接デプロイ例:**
+```powershell
+$env:VITE_API_BASE_URL="https://cycle-reminder-api.tobira-sys.workers.dev/api"; npm run build; npx wrangler pages deploy dist --project-name="cycle-reminder-ui"
+```
